@@ -1,0 +1,2346 @@
+{
+    "timestamp": "2026-04-30 20:58:56",
+    "data": [
+        {
+            "theme": "반도체 (Semiconductors)",
+            "krx": {
+                "future_twist": [
+                    {
+                        "display": "삼화전기(009470.KS)",
+                        "ticker": "009470.KS",
+                        "name": "삼화전기",
+                        "analysis": {
+                            "price": 48500.0,
+                            "market_cap": 320770270000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "텔레칩스(054450.KQ)",
+                        "ticker": "054450.KQ",
+                        "name": "텔레칩스",
+                        "analysis": {
+                            "price": 14310.0,
+                            "market_cap": 216713974230,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "와이투솔루션(011690.KS)",
+                        "ticker": "011690.KS",
+                        "name": "와이투솔루션",
+                        "analysis": {
+                            "price": 8130.0,
+                            "market_cap": 298406723220,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_red_cloud": [
+                    {
+                        "display": "유티아이(179900.KQ)",
+                        "ticker": "179900.KQ",
+                        "name": "유티아이",
+                        "analysis": {
+                            "price": 20450.0,
+                            "market_cap": 404713925400,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "아진엑스텍(059120.KQ)",
+                        "ticker": "059120.KQ",
+                        "name": "아진엑스텍",
+                        "analysis": {
+                            "price": 8910.0,
+                            "market_cap": 163142688060,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "high_volume": [
+                    {
+                        "display": "핌스(347770.KQ)",
+                        "ticker": "347770.KQ",
+                        "name": "핌스",
+                        "analysis": {
+                            "price": 2110.0,
+                            "market_cap": 48228358620,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "럭스피아(092590.KQ)",
+                        "ticker": "092590.KQ",
+                        "name": "럭스피아",
+                        "analysis": {
+                            "price": 770.0,
+                            "market_cap": 5227717266,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "리노공업(058470.KQ)",
+                        "ticker": "058470.KQ",
+                        "name": "리노공업",
+                        "analysis": {
+                            "price": 119300.0,
+                            "market_cap": 9092073705000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "피델릭스(032580.KQ)",
+                        "ticker": "032580.KQ",
+                        "name": "피델릭스",
+                        "analysis": {
+                            "price": 1372.0,
+                            "market_cap": 45457191808,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "이미지스(115610.KQ)",
+                        "ticker": "115610.KQ",
+                        "name": "이미지스",
+                        "analysis": {
+                            "price": 3065.0,
+                            "market_cap": 36224526985,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "퀄리타스반도체(432720.KQ)",
+                        "ticker": "432720.KQ",
+                        "name": "퀄리타스반도체",
+                        "analysis": {
+                            "price": 25050.0,
+                            "market_cap": 354623130600,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "화인써키트(127980.KQ)",
+                        "ticker": "127980.KQ",
+                        "name": "화인써키트",
+                        "analysis": {
+                            "price": 7010.0,
+                            "market_cap": 83003194840,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "아진엑스텍(059120.KQ)",
+                        "ticker": "059120.KQ",
+                        "name": "아진엑스텍",
+                        "analysis": {
+                            "price": 8910.0,
+                            "market_cap": 163142688060,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "서울바이오시스(092190.KQ)",
+                        "ticker": "092190.KQ",
+                        "name": "서울바이오시스",
+                        "analysis": {
+                            "price": 8640.0,
+                            "market_cap": 396302829120,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "코칩(126730.KQ)",
+                        "ticker": "126730.KQ",
+                        "name": "코칩",
+                        "analysis": {
+                            "price": 20950.0,
+                            "market_cap": 183734139700,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "아이에이(038880.KQ)",
+                        "ticker": "038880.KQ",
+                        "name": "아이에이",
+                        "analysis": {
+                            "price": 977.0,
+                            "market_cap": 36707958309,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "서울반도체(046890.KQ)",
+                        "ticker": "046890.KQ",
+                        "name": "서울반도체",
+                        "analysis": {
+                            "price": 16510.0,
+                            "market_cap": 962622154000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_and_consolidation": [
+                    {
+                        "display": "피델릭스(032580.KQ)",
+                        "ticker": "032580.KQ",
+                        "name": "피델릭스",
+                        "analysis": {
+                            "price": 1372.0,
+                            "market_cap": 45457191808,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "퀄리타스반도체(432720.KQ)",
+                        "ticker": "432720.KQ",
+                        "name": "퀄리타스반도체",
+                        "analysis": {
+                            "price": 25050.0,
+                            "market_cap": 354623130600,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "서울바이오시스(092190.KQ)",
+                        "ticker": "092190.KQ",
+                        "name": "서울바이오시스",
+                        "analysis": {
+                            "price": 8640.0,
+                            "market_cap": 396302829120,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "서울반도체(046890.KQ)",
+                        "ticker": "046890.KQ",
+                        "name": "서울반도체",
+                        "analysis": {
+                            "price": 16510.0,
+                            "market_cap": 962622154000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "동운아나텍(094170.KQ)",
+                        "ticker": "094170.KQ",
+                        "name": "동운아나텍",
+                        "analysis": {
+                            "price": 51400.0,
+                            "market_cap": 1074770710400,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "ma200_breakout": [
+                    {
+                        "display": "드림텍(192650.KS)",
+                        "ticker": "192650.KS",
+                        "name": "드림텍",
+                        "analysis": {
+                            "price": 6710.0,
+                            "market_cap": 462816875290,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "나노씨엠에스(247660.KQ)",
+                        "ticker": "247660.KQ",
+                        "name": "나노씨엠에스",
+                        "analysis": {
+                            "price": 4915.0,
+                            "market_cap": 21350366800,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "픽셀플러스(087600.KQ)",
+                        "ticker": "087600.KQ",
+                        "name": "픽셀플러스",
+                        "analysis": {
+                            "price": 6350.0,
+                            "market_cap": 51857643300,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "아나패스(123860.KQ)",
+                        "ticker": "123860.KQ",
+                        "name": "아나패스",
+                        "analysis": {
+                            "price": 17500.0,
+                            "market_cap": 212159762500,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "럭스피아(092590.KQ)",
+                        "ticker": "092590.KQ",
+                        "name": "럭스피아",
+                        "analysis": {
+                            "price": 770.0,
+                            "market_cap": 5227717266,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "제이앤티씨(204270.KQ)",
+                        "ticker": "204270.KQ",
+                        "name": "제이앤티씨",
+                        "analysis": {
+                            "price": 19340.0,
+                            "market_cap": 1118789332440,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "파인디앤씨(049120.KQ)",
+                        "ticker": "049120.KQ",
+                        "name": "파인디앤씨",
+                        "analysis": {
+                            "price": NaN,
+                            "market_cap": 36045656920,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "이미지스(115610.KQ)",
+                        "ticker": "115610.KQ",
+                        "name": "이미지스",
+                        "analysis": {
+                            "price": 3065.0,
+                            "market_cap": 36224526985,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "블루탑(191600.KQ)",
+                        "ticker": "191600.KQ",
+                        "name": "블루탑",
+                        "analysis": {
+                            "price": 8100.0,
+                            "market_cap": 21241835040,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "모티브링크(463480.KQ)",
+                        "ticker": "463480.KQ",
+                        "name": "모티브링크",
+                        "analysis": {
+                            "price": 8720.0,
+                            "market_cap": 108043921760,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "에스디시스템(121890.KQ)",
+                        "ticker": "121890.KQ",
+                        "name": "에스디시스템",
+                        "analysis": {
+                            "price": 1914.0,
+                            "market_cap": 25439827644,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "monthly_bottom_reversal": []
+            },
+            "nasdaq": {}
+        },
+        {
+            "theme": "제약/바이오 (Healthcare/Biotech)",
+            "krx": {
+                "future_twist": [
+                    {
+                        "display": "폴라리스AI파마(041910.KQ)",
+                        "ticker": "041910.KQ",
+                        "name": "폴라리스AI파마",
+                        "analysis": {
+                            "price": 7480.0,
+                            "market_cap": 99359458000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "에스바이오메딕스(304360.KQ)",
+                        "ticker": "304360.KQ",
+                        "name": "에스바이오메딕스",
+                        "analysis": {
+                            "price": 36100.0,
+                            "market_cap": 447103120800,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "코아스템켐온(166480.KQ)",
+                        "ticker": "166480.KQ",
+                        "name": "코아스템켐온",
+                        "analysis": {
+                            "price": 3320.0,
+                            "market_cap": 175529648320,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_red_cloud": [],
+                "high_volume": [
+                    {
+                        "display": "삼아제약(009300.KQ)",
+                        "ticker": "009300.KQ",
+                        "name": "삼아제약",
+                        "analysis": {
+                            "price": 16600.0,
+                            "market_cap": 105742000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "비보존 제약(082800.KQ)",
+                        "ticker": "082800.KQ",
+                        "name": "비보존 제약",
+                        "analysis": {
+                            "price": 3230.0,
+                            "market_cap": 196124521180,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "폴라리스AI파마(041910.KQ)",
+                        "ticker": "041910.KQ",
+                        "name": "폴라리스AI파마",
+                        "analysis": {
+                            "price": 7480.0,
+                            "market_cap": 99359458000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "일성아이에스(003120.KS)",
+                        "ticker": "003120.KS",
+                        "name": "일성아이에스",
+                        "analysis": {
+                            "price": 22750.0,
+                            "market_cap": 302575000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_and_consolidation": [],
+                "ma200_breakout": [
+                    {
+                        "display": "삼진제약(005500.KS)",
+                        "ticker": "005500.KS",
+                        "name": "삼진제약",
+                        "analysis": {
+                            "price": 18710.0,
+                            "market_cap": 249217200000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "환인제약(016580.KS)",
+                        "ticker": "016580.KS",
+                        "name": "환인제약",
+                        "analysis": {
+                            "price": 11860.0,
+                            "market_cap": 220596830200,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "고려제약(014570.KQ)",
+                        "ticker": "014570.KQ",
+                        "name": "고려제약",
+                        "analysis": {
+                            "price": 4190.0,
+                            "market_cap": 46090000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "팜젠사이언스(004720.KS)",
+                        "ticker": "004720.KS",
+                        "name": "팜젠사이언스",
+                        "analysis": {
+                            "price": 4195.0,
+                            "market_cap": 92099135890,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "유유제약(000220.KS)",
+                        "ticker": "000220.KS",
+                        "name": "유유제약",
+                        "analysis": {
+                            "price": 4245.0,
+                            "market_cap": 72302329995,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "이연제약(102460.KS)",
+                        "ticker": "102460.KS",
+                        "name": "이연제약",
+                        "analysis": {
+                            "price": 10790.0,
+                            "market_cap": 200551690690,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "경동제약(011040.KQ)",
+                        "ticker": "011040.KQ",
+                        "name": "경동제약",
+                        "analysis": {
+                            "price": 5640.0,
+                            "market_cap": 173535840240,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "대성미생물(036480.KQ)",
+                        "ticker": "036480.KQ",
+                        "name": "대성미생물",
+                        "analysis": {
+                            "price": 7490.0,
+                            "market_cap": 28462000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "바스칸바이오제약(354390.KQ)",
+                        "ticker": "354390.KQ",
+                        "name": "바스칸바이오제약",
+                        "analysis": {
+                            "price": 5590.0,
+                            "market_cap": 34985961295,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "monthly_bottom_reversal": []
+            },
+            "nasdaq": {}
+        },
+        {
+            "theme": "소프트웨어/IT (Software/IT)",
+            "krx": {
+                "future_twist": [
+                    {
+                        "display": "엑셈(205100.KQ)",
+                        "ticker": "205100.KQ",
+                        "name": "엑셈",
+                        "analysis": {
+                            "price": 1957.0,
+                            "market_cap": 138333329811,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "비큐AI(148780.KQ)",
+                        "ticker": "148780.KQ",
+                        "name": "비큐AI",
+                        "analysis": {
+                            "price": 1285.0,
+                            "market_cap": 40407756625,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "솔트룩스(304100.KQ)",
+                        "ticker": "304100.KQ",
+                        "name": "솔트룩스",
+                        "analysis": {
+                            "price": 23400.0,
+                            "market_cap": 294696207000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_red_cloud": [
+                    {
+                        "display": "뉴엔AI(463020.KQ)",
+                        "ticker": "463020.KQ",
+                        "name": "뉴엔AI",
+                        "analysis": {
+                            "price": 14720.0,
+                            "market_cap": 130701824000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "루닛(328130.KQ)",
+                        "ticker": "328130.KQ",
+                        "name": "루닛",
+                        "analysis": {
+                            "price": 41450.0,
+                            "market_cap": 1213842607900,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "high_volume": [
+                    {
+                        "display": "폴라리스오피스(041020.KQ)",
+                        "ticker": "041020.KQ",
+                        "name": "폴라리스오피스",
+                        "analysis": {
+                            "price": 4960.0,
+                            "market_cap": 246431613280,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "티사이언티픽(057680.KQ)",
+                        "ticker": "057680.KQ",
+                        "name": "티사이언티픽",
+                        "analysis": {
+                            "price": 2960.0,
+                            "market_cap": 42179112000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "엑셈(205100.KQ)",
+                        "ticker": "205100.KQ",
+                        "name": "엑셈",
+                        "analysis": {
+                            "price": 1957.0,
+                            "market_cap": 138333329811,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "시선AI(340810.KQ)",
+                        "ticker": "340810.KQ",
+                        "name": "시선AI",
+                        "analysis": {
+                            "price": 3335.0,
+                            "market_cap": 45505994960,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "디지틀조선(033130.KQ)",
+                        "ticker": "033130.KQ",
+                        "name": "디지틀조선",
+                        "analysis": {
+                            "price": 2760.0,
+                            "market_cap": 102438136920,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "밸로프(331520.KQ)",
+                        "ticker": "331520.KQ",
+                        "name": "밸로프",
+                        "analysis": {
+                            "price": 2615.0,
+                            "market_cap": 26602075970,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "심플랫폼(444530.KQ)",
+                        "ticker": "444530.KQ",
+                        "name": "심플랫폼",
+                        "analysis": {
+                            "price": 10100.0,
+                            "market_cap": 64611952300,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "비큐AI(148780.KQ)",
+                        "ticker": "148780.KQ",
+                        "name": "비큐AI",
+                        "analysis": {
+                            "price": 1285.0,
+                            "market_cap": 40407756625,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "스코넥(276040.KQ)",
+                        "ticker": "276040.KQ",
+                        "name": "스코넥",
+                        "analysis": {
+                            "price": 327.0,
+                            "market_cap": 7073119545,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "버넥트(438700.KQ)",
+                        "ticker": "438700.KQ",
+                        "name": "버넥트",
+                        "analysis": {
+                            "price": 3360.0,
+                            "market_cap": 37446830400,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "웨이버스(336060.KQ)",
+                        "ticker": "336060.KQ",
+                        "name": "웨이버스",
+                        "analysis": {
+                            "price": 1040.0,
+                            "market_cap": 50081408000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "비트맥스(377030.KQ)",
+                        "ticker": "377030.KQ",
+                        "name": "비트맥스",
+                        "analysis": {
+                            "price": 3430.0,
+                            "market_cap": 36681654800,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "인터로이드(311960.KQ)",
+                        "ticker": "311960.KQ",
+                        "name": "인터로이드",
+                        "analysis": {
+                            "price": 2205.0,
+                            "market_cap": 6416281080,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "크래프톤(259960.KS)",
+                        "ticker": "259960.KS",
+                        "name": "크래프톤",
+                        "analysis": {
+                            "price": 265000.0,
+                            "market_cap": 12563203740000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_and_consolidation": [
+                    {
+                        "display": "심플랫폼(444530.KQ)",
+                        "ticker": "444530.KQ",
+                        "name": "심플랫폼",
+                        "analysis": {
+                            "price": 10100.0,
+                            "market_cap": 64611952300,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "ma200_breakout": [
+                    {
+                        "display": "원티드랩(376980.KQ)",
+                        "ticker": "376980.KQ",
+                        "name": "원티드랩",
+                        "analysis": {
+                            "price": 4000.0,
+                            "market_cap": 39065576000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "컴투스(078340.KQ)",
+                        "ticker": "078340.KQ",
+                        "name": "컴투스",
+                        "analysis": {
+                            "price": 32750.0,
+                            "market_cap": 395990500750,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "폴라리스오피스(041020.KQ)",
+                        "ticker": "041020.KQ",
+                        "name": "폴라리스오피스",
+                        "analysis": {
+                            "price": 4960.0,
+                            "market_cap": 246431613280,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "링크제니시스(219420.KQ)",
+                        "ticker": "219420.KQ",
+                        "name": "링크제니시스",
+                        "analysis": {
+                            "price": 5080.0,
+                            "market_cap": 58265095560,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "오상자이엘(053980.KQ)",
+                        "ticker": "053980.KQ",
+                        "name": "오상자이엘",
+                        "analysis": {
+                            "price": 3275.0,
+                            "market_cap": 62168614325,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "시선AI(340810.KQ)",
+                        "ticker": "340810.KQ",
+                        "name": "시선AI",
+                        "analysis": {
+                            "price": 3335.0,
+                            "market_cap": 45505994960,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "루닛(328130.KQ)",
+                        "ticker": "328130.KQ",
+                        "name": "루닛",
+                        "analysis": {
+                            "price": 41450.0,
+                            "market_cap": 1213842607900,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "수산아이앤티(050960.KQ)",
+                        "ticker": "050960.KQ",
+                        "name": "수산아이앤티",
+                        "analysis": {
+                            "price": 9540.0,
+                            "market_cap": 64404540000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "아이스크림미디어(461300.KQ)",
+                        "ticker": "461300.KQ",
+                        "name": "아이스크림미디어",
+                        "analysis": {
+                            "price": 18600.0,
+                            "market_cap": 247425253800,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "심플랫폼(444530.KQ)",
+                        "ticker": "444530.KQ",
+                        "name": "심플랫폼",
+                        "analysis": {
+                            "price": 10100.0,
+                            "market_cap": 64611952300,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "디지캡(197140.KQ)",
+                        "ticker": "197140.KQ",
+                        "name": "디지캡",
+                        "analysis": {
+                            "price": 2035.0,
+                            "market_cap": 26481768390,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "오브젠(417860.KQ)",
+                        "ticker": "417860.KQ",
+                        "name": "오브젠",
+                        "analysis": {
+                            "price": 11620.0,
+                            "market_cap": 54578047720,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "오픈놀(440320.KQ)",
+                        "ticker": "440320.KQ",
+                        "name": "오픈놀",
+                        "analysis": {
+                            "price": 4260.0,
+                            "market_cap": 41875800000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "크래프톤(259960.KS)",
+                        "ticker": "259960.KS",
+                        "name": "크래프톤",
+                        "analysis": {
+                            "price": 265000.0,
+                            "market_cap": 12563203740000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "monthly_bottom_reversal": []
+            },
+            "nasdaq": {}
+        },
+        {
+            "theme": "자동차/모빌리티 (Auto/Mobility)",
+            "krx": {
+                "future_twist": [
+                    {
+                        "display": "이원컴포텍(088290.KQ)",
+                        "ticker": "088290.KQ",
+                        "name": "이원컴포텍",
+                        "analysis": {
+                            "price": 630.0,
+                            "market_cap": 25124629320,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "이녹스(088390.KQ)",
+                        "ticker": "088390.KQ",
+                        "name": "이녹스",
+                        "analysis": {
+                            "price": 13370.0,
+                            "market_cap": 125488734280,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "HL만도(204320.KS)",
+                        "ticker": "204320.KS",
+                        "name": "HL만도",
+                        "analysis": {
+                            "price": 57100.0,
+                            "market_cap": 2681251552000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_red_cloud": [
+                    {
+                        "display": "DH오토리드(290120.KQ)",
+                        "ticker": "290120.KQ",
+                        "name": "DH오토리드",
+                        "analysis": {
+                            "price": 3295.0,
+                            "market_cap": 52140900455,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "high_volume": [
+                    {
+                        "display": "이원컴포텍(088290.KQ)",
+                        "ticker": "088290.KQ",
+                        "name": "이원컴포텍",
+                        "analysis": {
+                            "price": 630.0,
+                            "market_cap": 25124629320,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "두올(016740.KS)",
+                        "ticker": "016740.KS",
+                        "name": "두올",
+                        "analysis": {
+                            "price": 5200.0,
+                            "market_cap": 149104924800,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "평화홀딩스(010770.KS)",
+                        "ticker": "010770.KS",
+                        "name": "평화홀딩스",
+                        "analysis": {
+                            "price": 4135.0,
+                            "market_cap": 60476301910,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "쏘카(403550.KS)",
+                        "ticker": "403550.KS",
+                        "name": "쏘카",
+                        "analysis": {
+                            "price": 17810.0,
+                            "market_cap": 584914274620,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "폴라리스세원(234100.KQ)",
+                        "ticker": "234100.KQ",
+                        "name": "폴라리스세원",
+                        "analysis": {
+                            "price": 5100.0,
+                            "market_cap": 74468346660,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "화승코퍼레이션(013520.KS)",
+                        "ticker": "013520.KS",
+                        "name": "화승코퍼레이션",
+                        "analysis": {
+                            "price": 3280.0,
+                            "market_cap": 164168106560,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "아진전자부품(009320.KS)",
+                        "ticker": "009320.KS",
+                        "name": "아진전자부품",
+                        "analysis": {
+                            "price": 1100.0,
+                            "market_cap": 54229747000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "유니테크노(241690.KQ)",
+                        "ticker": "241690.KQ",
+                        "name": "유니테크노",
+                        "analysis": {
+                            "price": 3865.0,
+                            "market_cap": 94579278690,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "DH오토리드(290120.KQ)",
+                        "ticker": "290120.KQ",
+                        "name": "DH오토리드",
+                        "analysis": {
+                            "price": 3295.0,
+                            "market_cap": 52140900455,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_and_consolidation": [
+                    {
+                        "display": "쏘카(403550.KS)",
+                        "ticker": "403550.KS",
+                        "name": "쏘카",
+                        "analysis": {
+                            "price": 17810.0,
+                            "market_cap": 584914274620,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "인지컨트롤스(023800.KS)",
+                        "ticker": "023800.KS",
+                        "name": "인지컨트롤스",
+                        "analysis": {
+                            "price": 8250.0,
+                            "market_cap": 130425875250,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "ma200_breakout": [
+                    {
+                        "display": "에코캡(128540.KQ)",
+                        "ticker": "128540.KQ",
+                        "name": "에코캡",
+                        "analysis": {
+                            "price": 1895.0,
+                            "market_cap": 50578421700,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "평화홀딩스(010770.KS)",
+                        "ticker": "010770.KS",
+                        "name": "평화홀딩스",
+                        "analysis": {
+                            "price": 4135.0,
+                            "market_cap": 60476301910,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "삼기에너지솔루션즈(419050.KQ)",
+                        "ticker": "419050.KQ",
+                        "name": "삼기에너지솔루션즈",
+                        "analysis": {
+                            "price": 1890.0,
+                            "market_cap": 108100893600,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "스모트로닉(066590.KQ)",
+                        "ticker": "066590.KQ",
+                        "name": "스모트로닉",
+                        "analysis": {
+                            "price": 2760.0,
+                            "market_cap": 106751106120,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "성창오토텍(080470.KQ)",
+                        "ticker": "080470.KQ",
+                        "name": "성창오토텍",
+                        "analysis": {
+                            "price": 4295.0,
+                            "market_cap": 31353500000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "디아이씨(092200.KS)",
+                        "ticker": "092200.KS",
+                        "name": "디아이씨",
+                        "analysis": {
+                            "price": 7590.0,
+                            "market_cap": 295164238710,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "오스템(031510.KQ)",
+                        "ticker": "031510.KQ",
+                        "name": "오스템",
+                        "analysis": {
+                            "price": 1039.0,
+                            "market_cap": 29092000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "monthly_bottom_reversal": []
+            },
+            "nasdaq": {}
+        },
+        {
+            "theme": "2차전지/에너지 (EV/Energy)",
+            "krx": {
+                "future_twist": [
+                    {
+                        "display": "EG(037370.KQ)",
+                        "ticker": "037370.KQ",
+                        "name": "EG",
+                        "analysis": {
+                            "price": 5640.0,
+                            "market_cap": 48644842080,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "한화(000880.KS)",
+                        "ticker": "000880.KS",
+                        "name": "한화",
+                        "analysis": {
+                            "price": 133400.0,
+                            "market_cap": 9405756394600,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "아모레퍼시픽(090430.KS)",
+                        "ticker": "090430.KS",
+                        "name": "아모레퍼시픽",
+                        "analysis": {
+                            "price": 135300.0,
+                            "market_cap": 7914070292700,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "씨앤투스(352700.KQ)",
+                        "ticker": "352700.KQ",
+                        "name": "씨앤투스",
+                        "analysis": {
+                            "price": 2145.0,
+                            "market_cap": 56363948355,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "강남제비스코(000860.KS)",
+                        "ticker": "000860.KS",
+                        "name": "강남제비스코",
+                        "analysis": {
+                            "price": 16840.0,
+                            "market_cap": 218920000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "한화솔루션(009830.KS)",
+                        "ticker": "009830.KS",
+                        "name": "한화솔루션",
+                        "analysis": {
+                            "price": 50700.0,
+                            "market_cap": 8714951575200,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "SP삼화(000390.KS)",
+                        "ticker": "000390.KS",
+                        "name": "SP삼화",
+                        "analysis": {
+                            "price": 9450.0,
+                            "market_cap": 257072782050,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_red_cloud": [],
+                "high_volume": [
+                    {
+                        "display": "와이엠티(251370.KQ)",
+                        "ticker": "251370.KQ",
+                        "name": "와이엠티",
+                        "analysis": {
+                            "price": 17910.0,
+                            "market_cap": 327490743870,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "EG(037370.KQ)",
+                        "ticker": "037370.KQ",
+                        "name": "EG",
+                        "analysis": {
+                            "price": 5640.0,
+                            "market_cap": 48644842080,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "나우코스(257990.KQ)",
+                        "ticker": "257990.KQ",
+                        "name": "나우코스",
+                        "analysis": {
+                            "price": 8220.0,
+                            "market_cap": 48132672640,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "KG케미칼(001390.KS)",
+                        "ticker": "001390.KS",
+                        "name": "KG케미칼",
+                        "analysis": {
+                            "price": 7070.0,
+                            "market_cap": 475337522100,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "와이씨켐(112290.KQ)",
+                        "ticker": "112290.KQ",
+                        "name": "와이씨켐",
+                        "analysis": {
+                            "price": 14050.0,
+                            "market_cap": 284106314500,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "성우(458650.KQ)",
+                        "ticker": "458650.KQ",
+                        "name": "성우",
+                        "analysis": {
+                            "price": 13800.0,
+                            "market_cap": 207630246000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "티케이케미칼(104480.KQ)",
+                        "ticker": "104480.KQ",
+                        "name": "티케이케미칼",
+                        "analysis": {
+                            "price": 2740.0,
+                            "market_cap": 249053489160,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "한화솔루션(009830.KS)",
+                        "ticker": "009830.KS",
+                        "name": "한화솔루션",
+                        "analysis": {
+                            "price": 50700.0,
+                            "market_cap": 8714951575200,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "송원산업(004430.KS)",
+                        "ticker": "004430.KS",
+                        "name": "송원산업",
+                        "analysis": {
+                            "price": 15850.0,
+                            "market_cap": 380400000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "현대바이오랜드(052260.KQ)",
+                        "ticker": "052260.KQ",
+                        "name": "현대바이오랜드",
+                        "analysis": {
+                            "price": 4590.0,
+                            "market_cap": 137700000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "엘케이켐(489500.KQ)",
+                        "ticker": "489500.KQ",
+                        "name": "엘케이켐",
+                        "analysis": {
+                            "price": 34550.0,
+                            "market_cap": 216906834800,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_and_consolidation": [
+                    {
+                        "display": "KPX홀딩스(092230.KS)",
+                        "ticker": "092230.KS",
+                        "name": "KPX홀딩스",
+                        "analysis": {
+                            "price": 91000.0,
+                            "market_cap": 384442786000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "KG케미칼(001390.KS)",
+                        "ticker": "001390.KS",
+                        "name": "KG케미칼",
+                        "analysis": {
+                            "price": 7070.0,
+                            "market_cap": 475337522100,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "DN오토모티브(007340.KS)",
+                        "ticker": "007340.KS",
+                        "name": "DN오토모티브",
+                        "analysis": {
+                            "price": 48050.0,
+                            "market_cap": 2811447063250,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "티케이케미칼(104480.KQ)",
+                        "ticker": "104480.KQ",
+                        "name": "티케이케미칼",
+                        "analysis": {
+                            "price": 2740.0,
+                            "market_cap": 249053489160,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "씨앗(103660.KQ)",
+                        "ticker": "103660.KQ",
+                        "name": "씨앗",
+                        "analysis": {
+                            "price": 1599.0,
+                            "market_cap": 9206730630,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "송원산업(004430.KS)",
+                        "ticker": "004430.KS",
+                        "name": "송원산업",
+                        "analysis": {
+                            "price": 15850.0,
+                            "market_cap": 380400000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "ma200_breakout": [
+                    {
+                        "display": "아모레퍼시픽홀딩스(002790.KS)",
+                        "ticker": "002790.KS",
+                        "name": "아모레퍼시픽홀딩스",
+                        "analysis": {
+                            "price": 27850.0,
+                            "market_cap": 2129360313000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "본느(226340.KQ)",
+                        "ticker": "226340.KQ",
+                        "name": "본느",
+                        "analysis": {
+                            "price": 647.0,
+                            "market_cap": 27143215740,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "마녀공장(439090.KQ)",
+                        "ticker": "439090.KQ",
+                        "name": "마녀공장",
+                        "analysis": {
+                            "price": 15940.0,
+                            "market_cap": 261308564400,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "선진뷰티사이언스(086710.KQ)",
+                        "ticker": "086710.KQ",
+                        "name": "선진뷰티사이언스",
+                        "analysis": {
+                            "price": 11030.0,
+                            "market_cap": 134602178400,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "한국화장품제조(003350.KS)",
+                        "ticker": "003350.KS",
+                        "name": "한국화장품제조",
+                        "analysis": {
+                            "price": 10100.0,
+                            "market_cap": 228866000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "케이디켐(221980.KQ)",
+                        "ticker": "221980.KQ",
+                        "name": "케이디켐",
+                        "analysis": {
+                            "price": 10430.0,
+                            "market_cap": 42082964000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "와이씨켐(112290.KQ)",
+                        "ticker": "112290.KQ",
+                        "name": "와이씨켐",
+                        "analysis": {
+                            "price": 14050.0,
+                            "market_cap": 284106314500,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "태경케미컬(006890.KS)",
+                        "ticker": "006890.KS",
+                        "name": "태경케미컬",
+                        "analysis": {
+                            "price": 8990.0,
+                            "market_cap": 104284000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "뷰티스킨(406820.KQ)",
+                        "ticker": "406820.KQ",
+                        "name": "뷰티스킨",
+                        "analysis": {
+                            "price": 3005.0,
+                            "market_cap": 42479151785,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "미원상사(002840.KS)",
+                        "ticker": "002840.KS",
+                        "name": "미원상사",
+                        "analysis": {
+                            "price": 151800.0,
+                            "market_cap": 721050000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "클리오(237880.KQ)",
+                        "ticker": "237880.KQ",
+                        "name": "클리오",
+                        "analysis": {
+                            "price": 13290.0,
+                            "market_cap": 240168281370,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "제노텍(066830.KQ)",
+                        "ticker": "066830.KQ",
+                        "name": "제노텍",
+                        "analysis": {
+                            "price": 1258.0,
+                            "market_cap": 6783614460,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "SK아이이테크놀로지(361610.KS)",
+                        "ticker": "361610.KS",
+                        "name": "SK아이이테크놀로지",
+                        "analysis": {
+                            "price": 26400.0,
+                            "market_cap": 2159179440000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "에코글로우(159910.KQ)",
+                        "ticker": "159910.KQ",
+                        "name": "에코글로우",
+                        "analysis": {
+                            "price": NaN,
+                            "market_cap": 41868388000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "에이에프더블류(312610.KQ)",
+                        "ticker": "312610.KQ",
+                        "name": "에이에프더블류",
+                        "analysis": {
+                            "price": 1350.0,
+                            "market_cap": 27346798800,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "씨큐브(101240.KQ)",
+                        "ticker": "101240.KQ",
+                        "name": "씨큐브",
+                        "analysis": {
+                            "price": 4165.0,
+                            "market_cap": 47302121580,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "대한화섬(003830.KS)",
+                        "ticker": "003830.KS",
+                        "name": "대한화섬",
+                        "analysis": {
+                            "price": 124300.0,
+                            "market_cap": 165070400000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "에코앤드림(101360.KQ)",
+                        "ticker": "101360.KQ",
+                        "name": "에코앤드림",
+                        "analysis": {
+                            "price": 19280.0,
+                            "market_cap": 342916277920,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "현대바이오랜드(052260.KQ)",
+                        "ticker": "052260.KQ",
+                        "name": "현대바이오랜드",
+                        "analysis": {
+                            "price": 4590.0,
+                            "market_cap": 137700000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "잇츠한불(226320.KS)",
+                        "ticker": "226320.KS",
+                        "name": "잇츠한불",
+                        "analysis": {
+                            "price": 12370.0,
+                            "market_cap": 271265626550,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "monthly_bottom_reversal": []
+            },
+            "nasdaq": {}
+        },
+        {
+            "theme": "금융 (Financials)",
+            "krx": {
+                "future_twist": [
+                    {
+                        "display": "HD현대(267250.KS)",
+                        "ticker": "267250.KS",
+                        "name": "HD현대",
+                        "analysis": {
+                            "price": 310500.0,
+                            "market_cap": 24527352892500,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "콜마홀딩스(024720.KS)",
+                        "ticker": "024720.KS",
+                        "name": "콜마홀딩스",
+                        "analysis": {
+                            "price": 9810.0,
+                            "market_cap": 336446300790,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "DB금융스팩12호(477760.KQ)",
+                        "ticker": "477760.KQ",
+                        "name": "DB금융스팩12호",
+                        "analysis": {
+                            "price": 2230.0,
+                            "market_cap": 13023200000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "에이치엠씨제6호스팩(462020.KQ)",
+                        "ticker": "462020.KQ",
+                        "name": "에이치엠씨제6호스팩",
+                        "analysis": {
+                            "price": 2105.0,
+                            "market_cap": 9146225000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "신한제11호스팩(452980.KQ)",
+                        "ticker": "452980.KQ",
+                        "name": "신한제11호스팩",
+                        "analysis": {
+                            "price": 2110.0,
+                            "market_cap": 39889550000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_red_cloud": [
+                    {
+                        "display": "윙입푸드(900340.KQ)",
+                        "ticker": "900340.KQ",
+                        "name": "윙입푸드",
+                        "analysis": {
+                            "price": 707.0,
+                            "market_cap": 35583966096,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "high_volume": [
+                    {
+                        "display": "에스케이증권제12호스팩(473000.KQ)",
+                        "ticker": "473000.KQ",
+                        "name": "에스케이증권제12호스팩",
+                        "analysis": {
+                            "price": 2085.0,
+                            "market_cap": 6901350000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "신한제15호스팩(487830.KQ)",
+                        "ticker": "487830.KQ",
+                        "name": "신한제15호스팩",
+                        "analysis": {
+                            "price": 2045.0,
+                            "market_cap": 8895750000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "한국제13호스팩(464440.KQ)",
+                        "ticker": "464440.KQ",
+                        "name": "한국제13호스팩",
+                        "analysis": {
+                            "price": 2085.0,
+                            "market_cap": 9007200000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "한화플러스제5호스팩(498390.KQ)",
+                        "ticker": "498390.KQ",
+                        "name": "한화플러스제5호스팩",
+                        "analysis": {
+                            "price": 2040.0,
+                            "market_cap": 10118400000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "HS효성(487570.KS)",
+                        "ticker": "487570.KS",
+                        "name": "HS효성",
+                        "analysis": {
+                            "price": 65500.0,
+                            "market_cap": 244048218500,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "미원홀딩스(107590.KS)",
+                        "ticker": "107590.KS",
+                        "name": "미원홀딩스",
+                        "analysis": {
+                            "price": 63300.0,
+                            "market_cap": 146856000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "삼성생명(032830.KS)",
+                        "ticker": "032830.KS",
+                        "name": "삼성생명",
+                        "analysis": {
+                            "price": 249500.0,
+                            "market_cap": 49900000000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "로스웰(900260.KQ)",
+                        "ticker": "900260.KQ",
+                        "name": "로스웰",
+                        "analysis": {
+                            "price": 1620.0,
+                            "market_cap": 74568123720,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "breakout_and_consolidation": [
+                    {
+                        "display": "에스케이증권제12호스팩(473000.KQ)",
+                        "ticker": "473000.KQ",
+                        "name": "에스케이증권제12호스팩",
+                        "analysis": {
+                            "price": 2085.0,
+                            "market_cap": 6901350000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "LS(006260.KS)",
+                        "ticker": "006260.KS",
+                        "name": "LS",
+                        "analysis": {
+                            "price": 453000.0,
+                            "market_cap": 14133600000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "오리온홀딩스(001800.KS)",
+                        "ticker": "001800.KS",
+                        "name": "오리온홀딩스",
+                        "analysis": {
+                            "price": 25850.0,
+                            "market_cap": 1619384158700,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "ma200_breakout": [
+                    {
+                        "display": "삼성화재(000810.KS)",
+                        "ticker": "000810.KS",
+                        "name": "삼성화재",
+                        "analysis": {
+                            "price": 461000.0,
+                            "market_cap": 20582485053000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "에스케이증권제12호스팩(473000.KQ)",
+                        "ticker": "473000.KQ",
+                        "name": "에스케이증권제12호스팩",
+                        "analysis": {
+                            "price": 2085.0,
+                            "market_cap": 6901350000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "신한제15호스팩(487830.KQ)",
+                        "ticker": "487830.KQ",
+                        "name": "신한제15호스팩",
+                        "analysis": {
+                            "price": 2045.0,
+                            "market_cap": 8895750000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "롯데지주(004990.KS)",
+                        "ticker": "004990.KS",
+                        "name": "롯데지주",
+                        "analysis": {
+                            "price": 30550.0,
+                            "market_cap": 3044728356800,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "에스케이증권제13호스팩(473950.KQ)",
+                        "ticker": "473950.KQ",
+                        "name": "에스케이증권제13호스팩",
+                        "analysis": {
+                            "price": 2040.0,
+                            "market_cap": 9016800000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "KB제32호스팩(0037T0.KQ)",
+                        "ticker": "0037T0.KQ",
+                        "name": "KB제32호스팩",
+                        "analysis": {
+                            "price": 2010.0,
+                            "market_cap": 12723300000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "교보17호스팩(489210.KQ)",
+                        "ticker": "489210.KQ",
+                        "name": "교보17호스팩",
+                        "analysis": {
+                            "price": 2100.0,
+                            "market_cap": 10878000000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "유진스팩11호(488060.KQ)",
+                        "ticker": "488060.KQ",
+                        "name": "유진스팩11호",
+                        "analysis": {
+                            "price": 2080.0,
+                            "market_cap": 9817600000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "F&F홀딩스(007700.KS)",
+                        "ticker": "007700.KS",
+                        "name": "F&F홀딩스",
+                        "analysis": {
+                            "price": 19200.0,
+                            "market_cap": 750995846400,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "KB제30호스팩(486630.KQ)",
+                        "ticker": "486630.KQ",
+                        "name": "KB제30호스팩",
+                        "analysis": {
+                            "price": 2055.0,
+                            "market_cap": 10912050000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "HS효성(487570.KS)",
+                        "ticker": "487570.KS",
+                        "name": "HS효성",
+                        "analysis": {
+                            "price": 65500.0,
+                            "market_cap": 244048218500,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "미래에셋비전스팩5호(477470.KQ)",
+                        "ticker": "477470.KQ",
+                        "name": "미래에셋비전스팩5호",
+                        "analysis": {
+                            "price": 2115.0,
+                            "market_cap": 11590200000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "서연(007860.KS)",
+                        "ticker": "007860.KS",
+                        "name": "서연",
+                        "analysis": {
+                            "price": 9460.0,
+                            "market_cap": 222119324240,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "한진칼(180640.KS)",
+                        "ticker": "180640.KS",
+                        "name": "한진칼",
+                        "analysis": {
+                            "price": 112700.0,
+                            "market_cap": 7524108843300,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "해성산업(034810.KQ)",
+                        "ticker": "034810.KQ",
+                        "name": "해성산업",
+                        "analysis": {
+                            "price": 8050.0,
+                            "market_cap": 262082698850,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "글로벌텍스프리(204620.KQ)",
+                        "ticker": "204620.KQ",
+                        "name": "글로벌텍스프리",
+                        "analysis": {
+                            "price": 5960.0,
+                            "market_cap": 418888646800,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "엔에이치스팩31호(481890.KQ)",
+                        "ticker": "481890.KQ",
+                        "name": "엔에이치스팩31호",
+                        "analysis": {
+                            "price": 2100.0,
+                            "market_cap": 13324500000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "크라운해태홀딩스(005740.KS)",
+                        "ticker": "005740.KS",
+                        "name": "크라운해태홀딩스",
+                        "analysis": {
+                            "price": 7170.0,
+                            "market_cap": 106455477990,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    },
+                    {
+                        "display": "머니무브(179720.KQ)",
+                        "ticker": "179720.KQ",
+                        "name": "머니무브",
+                        "analysis": {
+                            "price": 9980.0,
+                            "market_cap": 24750162000,
+                            "ma20_support": false,
+                            "ma60_support": false,
+                            "pattern": ""
+                        }
+                    }
+                ],
+                "monthly_bottom_reversal": []
+            },
+            "nasdaq": {}
+        },
+        {
+            "theme": "인공지능/로봇 (AI/Robotics)",
+            "krx": {},
+            "nasdaq": {}
+        },
+        {
+            "theme": "우주항공/국방 (Aerospace/Defense)",
+            "krx": {
+                "future_twist": [],
+                "breakout_red_cloud": [],
+                "high_volume": [],
+                "breakout_and_consolidation": [],
+                "ma200_breakout": [],
+                "monthly_bottom_reversal": []
+            },
+            "nasdaq": {}
+        },
+        {
+            "theme": "조선/해운 (Shipbuilding/Shipping)",
+            "krx": {},
+            "nasdaq": {}
+        }
+    ]
+}
