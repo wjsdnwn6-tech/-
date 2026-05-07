@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -7,7 +8,12 @@ import yfinance as yf
 import os
 import json
 
-app = FastAPI(title="Ichimoku Scanner & Trading API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    paper_trade.init_db()
+    yield
+
+app = FastAPI(title="Ichimoku Scanner & Trading API", lifespan=lifespan)
 
 # Configure CORS for Vite Frontend
 app.add_middleware(
@@ -20,10 +26,6 @@ app.add_middleware(
 
 class TradeRequest(BaseModel):
     ticker: str
-
-@app.on_event("startup")
-def startup_event():
-    paper_trade.init_db()
 
 @app.get("/api/status")
 def get_status():
@@ -51,7 +53,7 @@ def get_status():
 
         try:
             name = yf.Ticker(ticker).info.get('shortName', ticker)
-        except:
+        except Exception:
             name = ticker
 
         portfolio.append({
@@ -87,10 +89,12 @@ def sell_stock(req: TradeRequest):
 
 @app.get("/api/scan-results")
 def get_scan_results():
-    if not os.path.exists("scan_results.json"):
-        return []
-    with open("scan_results.json", "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except:
-            return []
+    # 루트의 scan_results.json을 우선 확인, 없으면 frontend/public 확인
+    for path in ["scan_results.json", "frontend/public/scan_results.json"]:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                try:
+                    return json.load(f)
+                except Exception:
+                    continue
+    return []

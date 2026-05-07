@@ -1,456 +1,439 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Search,
-  Clock,
-  Globe,
-  X,
-  Zap,
-  TrendingUp,
-  Activity,
-  BarChart2,
-  Shield,
-  Layers,
-  Filter,
-  CheckCircle2,
-  AlertCircle
+  Search, Clock, Globe, X, TrendingUp, Activity,
+  BarChart2, Layers, Filter, ChevronDown, ChevronRight, ArrowUpRight
 } from 'lucide-react';
 
-type TickerAnalysis = {
-  price: number;
-  market_cap: number;
-  ma20_support: boolean;
-  ma60_support: boolean;
-  pattern: string;
-};
-
-type TickerData = {
-  display: string;
-  ticker: string;
-  name: string;
+// ─── Types ───
+type TickerAnalysis = { price: number; market_cap: number; ma20_support: boolean; ma60_support: boolean; pattern: string };
+type TickerData = { display: string; ticker: string; name: string; analysis: TickerAnalysis };
+type ThemeResult = { theme: string; krx: Record<string, TickerData[]> | null; nasdaq: Record<string, TickerData[]> | null };
+type ScanResults = { timestamp: string; data: ThemeResult[] };
+type FlatStock = {
+  uid: string; theme: string; market: 'KRX' | 'NASDAQ'; ticker: string; name: string;
+  display: string; price: number; marketCap: number; signals: string[]; tvSymbol: string;
   analysis: TickerAnalysis;
 };
 
-type ThemeResult = {
-  theme: string;
-  krx: Record<string, TickerData[]> | null;
-  nasdaq: Record<string, TickerData[]> | null;
+// ─── Constants ───
+const SIGNAL_META: Record<string, { label: string; icon: string; color: string; bg: string; border: string }> = {
+  monthly_pattern:             { label: '월봉 패턴 방어', icon: '🛡️', color: 'text-cyan-300',    bg: 'bg-cyan-500/15',    border: 'border-cyan-500/30' },
+  cloud_twist:                 { label: '양운 전환',       icon: '🟢', color: 'text-emerald-300', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30' },
+  ma200_support_breakout:      { label: '200일선 지지/돌파', icon: '📈', color: 'text-pink-300',    bg: 'bg-pink-500/15',    border: 'border-pink-500/30' },
+  '5yr_high_breakout':         { label: '5년 전고점 돌파',  icon: '🚀', color: 'text-rose-300',    bg: 'bg-rose-500/15',    border: 'border-rose-500/30' }
 };
+const ALL_SIGNALS = Object.keys(SIGNAL_META);
 
-type ScanResults = {
-  timestamp: string;
-  data: ThemeResult[];
-};
+function getTVSymbol(ticker: string, market: 'KRX' | 'NASDAQ') {
+  const clean = ticker.split(' ')[0].replace(/[()]/g, '').trim();
+  if (market === 'KRX') return `KRX:${clean.replace('.KS', '').replace('.KQ', '')}`;
+  return `NASDAQ:${clean}`;
+}
 
-type FlattenedTicker = {
-  id: string;
-  theme: string;
-  market: 'KRX' | 'NASDAQ';
-  indicatorKey: string;
-  indicatorLabel: string;
-  tvSymbol: string;
-} & TickerData;
+function formatCap(cap: number, isUS: boolean, usdRate: number) {
+  if (!cap || cap <= 0) return 'N/A';
+  if (isUS) {
+    const krw = cap * usdRate;
+    const usd = cap >= 1e9 ? `${(cap / 1e9).toFixed(1)}B` : `${(cap / 1e6).toFixed(0)}M`;
+    const k = krw >= 1e12 ? `${(krw / 1e12).toFixed(1)}조` : `${(krw / 1e8).toFixed(0)}억`;
+    return `$${usd} (${k})`;
+  }
+  if (cap >= 1e12) return `${(cap / 1e12).toFixed(1)}조`;
+  if (cap >= 1e8) return `${(cap / 1e8).toFixed(0)}억`;
+  return `${cap.toLocaleString()}원`;
+}
 
-const INDICATOR_LABELS: Record<string, string> = {
-  future_twist: "미래 구름대 양운 전환",
-  breakout_red_cloud: "음운 상향 돌파",
-  high_volume: "거래량 폭발",
-  breakout_and_consolidation: "전고점 돌파 및 횡보",
-  ma200_breakout: "200일선 돌파",
-  monthly_bottom_reversal: "🔥 월봉 최저가 바닥 탈출"
-};
-
-const INDICATOR_COLORS: Record<string, string> = {
-  future_twist: "text-yellow-400",
-  breakout_red_cloud: "text-green-400",
-  high_volume: "text-orange-400",
-  breakout_and_consolidation: "text-purple-400",
-  ma200_breakout: "text-pink-400",
-  monthly_bottom_reversal: "text-indigo-400"
-};
-
-// TradingView Widget Component
-const TVChart = ({ symbol, onClose }: { symbol: string; onClose: () => void }) => {
-  const containerId = 'tv_chart_container_overlay';
-  const containerRef = useRef<HTMLDivElement>(null);
+// ─── TradingView Chart ───
+const TVChart = ({ symbol }: { symbol: string }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const id = 'tv_main_chart';
 
   useEffect(() => {
-    if (containerRef.current) containerRef.current.innerHTML = '';
-
-    const loadWidget = () => {
-      if (typeof (window as any).TradingView !== 'undefined' && containerRef.current) {
+    if (ref.current) ref.current.innerHTML = '';
+    const load = () => {
+      if (typeof (window as any).TradingView !== 'undefined' && ref.current) {
         new (window as any).TradingView.widget({
-          autosize: true,
-          symbol: symbol,
-          interval: "1M",
-          timezone: "Asia/Seoul",
-          theme: "dark",
-          style: "1",
-          locale: "kr",
-          hostname: "kr.tradingview.com", // Ensure Korean regional data resolution
-          enable_publishing: false,
-          backgroundColor: "#000000",
-          gridColor: "#111111",
-          container_id: containerId,
-          saved_chart: "qHQNs4ra", // User's personal layout ID
-          studies: ["IchimokuCloud@tv-basicstudies"] // Fallback indicator
+          autosize: true, symbol, interval: 'M', timezone: 'Asia/Seoul',
+          theme: 'dark', style: '1', locale: 'kr', hostname: 'kr.tradingview.com',
+          enable_publishing: false, backgroundColor: '#020617', gridColor: '#1e293b',
+          container_id: id,
+          studies: [
+            'IchimokuCloud@tv-basicstudies',
+            { id: 'MASimple@tv-basicstudies', inputs: { length: 20 } },
+            { id: 'MASimple@tv-basicstudies', inputs: { length: 60 } },
+          ],
         });
       }
     };
-
     if (!(window as any).TradingView) {
-      const script = document.createElement('script');
-      script.src = 'https://s3.tradingview.com/tv.js';
-      script.async = true;
-      script.onload = loadWidget;
-      document.head.appendChild(script);
-    } else loadWidget();
+      const s = document.createElement('script');
+      s.src = 'https://s3.tradingview.com/tv.js';
+      s.async = true; s.onload = load;
+      document.head.appendChild(s);
+    } else load();
   }, [symbol]);
 
+  return <div id={id} ref={ref} className="w-full h-full" />;
+};
+
+// ─── Signal Badge ───
+const SignalBadge = ({ sig }: { sig: string }) => {
+  const m = SIGNAL_META[sig];
+  if (!m) return null;
   return (
-    <div className="fixed inset-y-0 right-0 w-full lg:w-3/4 bg-slate-900 shadow-2xl z-50 border-l border-slate-700 flex flex-col animate-in slide-in-from-right duration-300">
-      <div className="h-14 flex items-center justify-between px-6 bg-slate-800 border-b border-slate-700">
-        <div className="flex items-center gap-2">
-          <BarChart2 className="w-5 h-5 text-blue-400" />
-          <span className="font-bold text-slate-100">{symbol} 실시간 월봉 차트</span>
-        </div>
-        <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded-full transition-colors">
-          <X className="w-6 h-6 text-slate-400" />
-        </button>
-      </div>
-      <div id={containerId} ref={containerRef} className="flex-1" />
-    </div>
+    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${m.bg} ${m.color} ${m.border}`}>
+      <span>{m.icon}</span>{m.label}
+    </span>
   );
 };
 
-const INDICATOR_TAG_STYLES: Record<string, string> = {
-  future_twist: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  breakout_red_cloud: "bg-rose-500/20 text-rose-300 border-rose-500/30",
-  high_volume: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  breakout_and_consolidation: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-  ma200_breakout: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-  monthly_bottom_reversal: "bg-violet-500/20 text-violet-300 border-violet-500/30"
-};
-
-const TickerPill = ({
-  item,
-  onClick,
-  isIntersection,
-  allIndicators,
-  usdRate
-}: {
-  item: FlattenedTicker;
-  onClick: () => void;
-  isIntersection: boolean;
-  allIndicators: { key: string; label: string }[];
-  usdRate: number;
+// ─── Stock Card ───
+const StockCard = ({ stock, isActive, usdRate, onClick }: {
+  stock: FlatStock; isActive: boolean; usdRate: number; onClick: () => void;
 }) => {
-  const { analysis } = item;
-  
-  const formatCap = (cap: number) => {
-    if (!cap) return "N/A";
-    if (cap >= 1e12) return `${(cap / 1e12).toFixed(1)}T`;
-    if (cap >= 1e8) return `${(cap / 1e8).toFixed(0)}억`;
-    if (cap >= 1e4) return `${(cap / 1e4).toFixed(0)}만`;
-    return cap.toLocaleString();
-  };
-
-  const renderPrice = () => {
-    if (analysis.price <= 0) return null;
-    
-    const isUS = item.market === 'NASDAQ';
-    const krwPrice = isUS ? Math.round(analysis.price * usdRate) : analysis.price;
-    
-    const formatCap = (cap: number) => {
-      if (!cap || cap <= 0) return "해당사항 없음";
-      
-      const toKRWStr = (val: number) => {
-        if (val >= 1e12) return `${(val / 1e12).toFixed(1)}조`;
-        if (val >= 1e8) return `${(val / 1e8).toFixed(0)}억`;
-        return `${val.toLocaleString()}원`;
-      };
-
-      if (isUS) {
-        const usdStr = cap >= 1e9 ? `${(cap / 1e9).toFixed(1)}B달러` : `${(cap / 1e6).toFixed(0)}M달러`;
-        const krwStr = toKRWStr(cap * usdRate);
-        return `${usdStr} (원화 ${krwStr})`;
-      }
-      
-      return toKRWStr(cap);
-    };
-
-    return (
-      <div className="flex flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <span className={`font-black text-base transition-colors ${isIntersection ? 'text-rose-400' : 'text-blue-400'}`}>
-            {isUS ? `${analysis.price.toLocaleString()}달러` : `${analysis.price.toLocaleString()}원`}
-          </span>
-          {isUS && (
-            <span className="text-[10px] text-slate-500 font-bold">
-              ({krwPrice.toLocaleString()}원)
-            </span>
-          )}
-        </div>
-        <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
-          <span className="opacity-60">시총:</span>
-          <span className={analysis.market_cap > 0 ? "text-slate-400" : ""}>{formatCap(analysis.market_cap)}</span>
-        </div>
-      </div>
-    );
-  };
-  
+  const isUS = stock.market === 'NASDAQ';
+  const multi = stock.signals.length > 1;
   return (
-    <button
-      onClick={onClick}
-      className={`
-        group relative flex flex-col items-start gap-2 p-4 rounded-2xl text-sm font-medium transition-all duration-200 text-left
-        ${isIntersection 
-          ? 'bg-red-950/20 text-red-100 border-2 border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.15)] hover:bg-red-950/30 hover:border-red-500' 
-          : 'bg-slate-800/40 text-slate-200 border border-slate-700/50 hover:bg-slate-800/60 hover:border-slate-600'
-        }
-      `}
-    >
-      <div className="flex items-center justify-between w-full gap-4">
-        <span className={`font-extrabold text-lg tracking-tight transition-colors ${isIntersection ? 'text-white group-hover:text-red-400' : 'text-white group-hover:text-blue-400'}`}>
-          {item.name}
-        </span>
-        <span className="text-xs font-mono opacity-40 group-hover:opacity-100">{item.ticker}</span>
+    <button onClick={onClick} className={`
+      w-full text-left p-3.5 rounded-xl border transition-all duration-150 group
+      ${isActive
+        ? 'bg-blue-600/20 border-blue-500/60 shadow-lg shadow-blue-500/10'
+        : multi
+          ? 'bg-red-950/15 border-red-500/30 hover:bg-red-950/25 hover:border-red-500/50'
+          : 'bg-slate-800/40 border-slate-700/40 hover:bg-slate-800/70 hover:border-slate-600'
+      }
+    `}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="font-extrabold text-sm text-white truncate">{stock.name}</span>
+        <span className="text-[10px] font-mono text-slate-500 group-hover:text-slate-300 shrink-0 ml-2">{stock.ticker}</span>
       </div>
-      
-      <div className="flex flex-col gap-2 mt-0.5 w-full">
-        {renderPrice()}
-        
-        {/* 교집합일 경우 중복된 모든 조건들을 전용 색상 박스로 표시 */}
-        {isIntersection && (
-          <div className="flex flex-wrap gap-1.5 mt-1">
-            {allIndicators.map((ind, i) => (
-              <span key={i} className={`text-[10px] px-2 py-0.5 rounded-lg border font-black uppercase tracking-tighter ${INDICATOR_TAG_STYLES[ind.key] || 'bg-slate-700 text-slate-300'}`}>
-                {ind.label}
-              </span>
-            ))}
-          </div>
-        )}
+      <div className="flex items-center gap-3 mb-2 text-xs">
+        <span className="font-bold text-blue-400">
+          {isUS ? `$${stock.price.toLocaleString()}` : `₩${stock.price.toLocaleString()}`}
+        </span>
+        <span className="text-slate-500 text-[10px]">시총 {formatCap(stock.marketCap, isUS, usdRate)}</span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {stock.signals.map(s => <SignalBadge key={s} sig={s} />)}
       </div>
     </button>
   );
 };
 
-const MarketSection = ({
-  title,
-  data,
-  market,
-  theme,
-  onTickerClick,
-  intersections,
-  usdRate
-}: {
-  title: string;
-  data: Record<string, TickerData[]>;
-  market: 'KRX' | 'NASDAQ';
-  theme: string;
-  onTickerClick: (symbol: string) => void;
-  intersections: Record<string, { key: string; label: string }[]>;
-  usdRate: number;
+// ─── Accordion Section ───
+const SignalSection = ({ signal, stocks, activeId, usdRate, onSelect }: {
+  signal: string; stocks: FlatStock[]; activeId: string | null; usdRate: number;
+  onSelect: (s: FlatStock) => void;
 }) => {
-  const hasData = Object.values(data).some(arr => arr && arr.length > 0);
-  if (!hasData) return (
-    <div className="flex-1 flex items-center justify-center py-10 opacity-30 italic text-sm">
-      데이터 없음
-    </div>
-  );
-
-  const getTVSymbol = (ticker: string, market: 'KRX' | 'NASDAQ') => {
-    const cleanTicker = ticker.split(' ')[0].replace(/[()]/g, '').trim();
-    if (market === 'KRX') {
-      const rawCode = cleanTicker.replace('.KS', '').replace('.KQ', '');
-      return `KRX:${rawCode}`;
-    }
-    return `NASDAQ:${cleanTicker}`;
-  };
-
+  const [open, setOpen] = useState(true);
+  const m = SIGNAL_META[signal];
+  if (!m || stocks.length === 0) return null;
   return (
-    <div className="flex-1 min-w-[300px]">
-      <div className="flex items-center gap-4 mb-10 border-b-2 border-slate-700 pb-5">
-        <Globe className={`w-8 h-8 ${market === 'KRX' ? 'text-blue-400' : 'text-rose-400'}`} />
-        <h4 className="text-3xl font-black text-slate-100 uppercase tracking-tighter">{title}</h4>
-      </div>
-      <div className="space-y-8">
-        {Object.entries(data).map(([indicator, tickers]) => {
-          if (!tickers || tickers.length === 0) return null;
-          return (
-            <div key={indicator} className="space-y-3">
-              <div className="flex items-center gap-3 px-1">
-                <Activity className={`w-5 h-5 ${INDICATOR_COLORS[indicator] || 'text-slate-500'}`} />
-                <span className="text-lg font-black text-slate-300 uppercase tracking-tighter">
-                  {INDICATOR_LABELS[indicator] || indicator}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {tickers.map((t: any, idx) => {
-                  const tickerObj: TickerData = typeof t === 'string' ? {
-                    display: t,
-                    ticker: t.match(/\(([^)]+)\)/)?.[1] || t,
-                    name: t.split('(')[0],
-                    analysis: { price: 0, market_cap: 0, ma20_support: false, ma60_support: false, pattern: "" }
-                  } : t;
-
-                  const tickerId = `${theme}_${tickerObj.ticker}`;
-                  const labels = intersections[tickerId] || [];
-                  const isIntersection = labels.length > 1;
-
-                  return (
-                    <TickerPill
-                      key={`${indicator}-${idx}`}
-                      isIntersection={isIntersection}
-                      allIndicators={labels}
-                      usdRate={usdRate}
-                      item={{
-                        ...tickerObj,
-                        id: `${theme}-${market}-${indicator}-${idx}`,
-                        theme,
-                        market,
-                        indicatorKey: indicator,
-                        indicatorLabel: INDICATOR_LABELS[indicator] || indicator,
-                        tvSymbol: getTVSymbol(tickerObj.ticker, market)
-                      }}
-                      onClick={() => {
-                        const targetSymbol = getTVSymbol(tickerObj.ticker, market);
-                        console.log('선택된 심볼:', targetSymbol);
-                        onTickerClick(targetSymbol);
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+    <div className="mb-4">
+      <button onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full text-left py-1.5 px-1 hover:bg-slate-800/50 rounded-lg transition-colors">
+        {open ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
+        <span className={`text-xs font-black uppercase tracking-tight ${m.color}`}>{m.icon} {m.label}</span>
+        <span className="text-[10px] text-slate-600 font-bold">{stocks.length}</span>
+      </button>
+      {open && (
+        <div className="grid grid-cols-1 gap-2 mt-2 pl-1">
+          {stocks.map(s => (
+            <StockCard key={s.uid} stock={s} isActive={activeId === s.uid} usdRate={usdRate}
+              onClick={() => onSelect(s)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
+// ─── Main App ───
 export default function App() {
   const [data, setData] = useState<ScanResults | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [usdRate, setUsdRate] = useState(1350); // Default fallback
+  const [search, setSearch] = useState('');
+  const [selTheme, setSelTheme] = useState<string | null>(null);
+  const [selMarket, setSelMarket] = useState<'ALL' | 'KRX' | 'NASDAQ'>('ALL');
+  const [selSignals, setSelSignals] = useState<Set<string>>(new Set());
+  const [selStock, setSelStock] = useState<FlatStock | null>(null);
+  const [usdRate, setUsdRate] = useState(1400);
 
   useEffect(() => {
-    // Fetch USD rate
-    fetch('https://open.er-api.com/v6/latest/USD')
-      .then(res => res.json())
-      .then(json => setUsdRate(json.rates.KRW))
-      .catch(err => console.error("Failed to fetch exchange rate", err));
-
-    fetch('/scan_results.json')
-      .then(res => res.json())
-      .then(json => {
-        setData(json);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Failed to fetch data", err);
-        setLoading(false);
-      });
+    fetch('https://open.er-api.com/v6/latest/USD').then(r => r.json())
+      .then(j => setUsdRate(j.rates?.KRW ?? 1400)).catch(() => {});
+    fetch('/scan_results.json').then(r => r.json())
+      .then(j => { setData(j); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
-  const filteredThemes = useMemo(() => {
+  // Flatten & deduplicate stocks
+  const flatStocks = useMemo(() => {
     if (!data) return [];
-    if (!searchTerm) return data.data;
-    const term = searchTerm.toLowerCase();
-    return data.data.filter(theme => {
-      if (theme.theme.toLowerCase().includes(term)) return true;
-      const checkMarket = (m: Record<string, any[]> | null) =>
-        m && Object.values(m).some(tickers => tickers.some((t: any) => {
-          if (typeof t === 'string') return t.toLowerCase().includes(term);
-          return t.name.toLowerCase().includes(term) || t.ticker.toLowerCase().includes(term);
-        }));
-      return checkMarket(theme.krx) || checkMarket(theme.nasdaq);
-    });
-  }, [data, searchTerm]);
-
-  const tickerIntersections = useMemo(() => {
-    const counts: Record<string, { key: string; label: string }[]> = {};
-    if (!data) return counts;
-
+    const map = new Map<string, FlatStock>();
     data.data.forEach(theme => {
-      const processMarket = (market: Record<string, any[]> | null) => {
-        if (!market) return;
-        Object.entries(market).forEach(([indicator, tickers]) => {
+      (['krx', 'nasdaq'] as const).forEach(mk => {
+        const mData = mk === 'krx' ? theme.krx : theme.nasdaq;
+        if (!mData) return;
+        const market: 'KRX' | 'NASDAQ' = mk === 'krx' ? 'KRX' : 'NASDAQ';
+        Object.entries(mData).forEach(([sig, tickers]) => {
+          if (!tickers) return;
           tickers.forEach((t: any) => {
-            const ticker = typeof t === 'string' ? t.match(/\(([^)]+)\)/)?.[1] || t : t.ticker;
-            const key = `${theme.theme}_${ticker}`;
-            const label = INDICATOR_LABELS[indicator] || indicator;
-
-            if (!counts[key]) counts[key] = [];
-            if (!counts[key].some(item => item.key === indicator)) {
-              counts[key].push({ key: indicator, label });
+            const td: TickerData = typeof t === 'string'
+              ? { display: t, ticker: t, name: t, analysis: { price: 0, market_cap: 0, ma20_support: false, ma60_support: false, pattern: '' } }
+              : t;
+            const uid = `${theme.theme}_${market}_${td.ticker}`;
+            const existing = map.get(uid);
+            if (existing) {
+              if (!existing.signals.includes(sig)) existing.signals.push(sig);
+            } else {
+              map.set(uid, {
+                uid, theme: theme.theme, market, ticker: td.ticker, name: td.name,
+                display: td.display, price: td.analysis.price, marketCap: td.analysis.market_cap,
+                signals: [sig], tvSymbol: getTVSymbol(td.ticker, market), analysis: td.analysis,
+              });
             }
           });
         });
-      };
-      processMarket(theme.krx);
-      processMarket(theme.nasdaq);
+      });
     });
-    return counts;
+    return Array.from(map.values());
   }, [data]);
+
+  // Filtered stocks
+  const filtered = useMemo(() => {
+    let list = flatStocks;
+    if (selTheme) list = list.filter(s => s.theme === selTheme);
+    if (selMarket !== 'ALL') list = list.filter(s => s.market === selMarket);
+    if (selSignals.size > 0) list = list.filter(s => s.signals.some(sig => selSignals.has(sig)));
+    if (search) {
+      const t = search.toLowerCase();
+      list = list.filter(s => s.name.toLowerCase().includes(t) || s.ticker.toLowerCase().includes(t) || s.theme.toLowerCase().includes(t));
+    }
+    // Sort: multi-signal first, then by name
+    return list.sort((a, b) => b.signals.length - a.signals.length || a.name.localeCompare(b.name));
+  }, [flatStocks, selTheme, selMarket, selSignals, search]);
+
+  // Theme list with counts
+  const themes = useMemo(() => {
+    const HARDCODED_THEMES = [
+      "IT (소프트웨어, 하드웨어, 반도체, IT 기기 및 서비스)",
+      "커뮤니케이션 (통신, 미디어, 엔터테인먼트, 인터랙티브 미디어 및 서비스)",
+      "임의소비재 (자동차 및 부품, 내구소비재, 의류, 레저, 호텔/레스토랑)",
+      "필수소비재 (식음료, 유통, 가정용품, 개인용품, 담배)",
+      "헬스케어 (제약, 생명공학(바이오), 의료기기, 헬스케어 서비스 및 장비)",
+      "금융 (은행, 보험, 다각화된 금융 서비스, 소비자 금융)",
+      "산업재 (자본재, 기계, 상업/전문 서비스, 운송 및 물류)",
+      "소재 (화학, 건설자재, 금속 및 채광, 종이/포장재)",
+      "에너지 (석유/가스 탐사 및 생산, 정제, 에너지 장비 및 서비스)",
+      "유틸리티 (전력, 가스, 수도, 다각화된 재생에너지)",
+      "부동산 (부동산 관리 및 개발, 리츠(REITs))"
+    ];
+    const counts = new Map<string, number>();
+    HARDCODED_THEMES.forEach(t => counts.set(t, 0));
+    flatStocks.forEach(s => {
+      if (counts.has(s.theme)) {
+        counts.set(s.theme, counts.get(s.theme)! + 1);
+      }
+    });
+    return Array.from(counts.entries()); // Keeps the original 11 categories order
+  }, [flatStocks]);
+
+  // Group filtered by signal for accordion
+  const groupedBySignal = useMemo(() => {
+    const groups: Record<string, FlatStock[]> = {};
+    ALL_SIGNALS.forEach(sig => { groups[sig] = []; });
+    filtered.forEach(s => {
+      s.signals.forEach(sig => {
+        if (!groups[sig]) groups[sig] = [];
+        // avoid duplicate cards: only add if not already there
+        if (!groups[sig].find(x => x.uid === s.uid)) groups[sig].push(s);
+      });
+    });
+    return groups;
+  }, [filtered]);
+
+  const toggleSignal = (sig: string) => {
+    setSelSignals(prev => {
+      const next = new Set(prev);
+      if (next.has(sig)) next.delete(sig); else next.add(sig);
+      return next;
+    });
+  };
 
   if (loading) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-      <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+      <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
     </div>
   );
 
+  const multiSignalCount = filtered.filter(s => s.signals.length > 1).length;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col">
-      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-6 py-5">
-        <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg">
-              <Layers className="w-7 h-7 text-white" />
+    <div className="h-screen flex flex-col bg-slate-950 text-slate-200 overflow-hidden">
+      {/* ─── Header ─── */}
+      <header className="shrink-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 z-40">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
+              <Layers className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white tracking-tighter uppercase">Market <span className="text-blue-500">Intelligence</span></h1>
-              <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold mt-0.5 tracking-widest uppercase">
-                <Clock className="w-3 h-3" /> {data?.timestamp} 업데이트됨
+              <h1 className="text-lg font-black text-white tracking-tight">
+                Market <span className="text-blue-400">Scanner</span>
+              </h1>
+              <div className="flex items-center gap-1.5 text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                <Clock className="w-2.5 h-2.5" />{data?.timestamp}
+                <span className="mx-1">·</span>
+                <span className="text-blue-400">{filtered.length}</span> 종목
+                {multiSignalCount > 0 && <><span className="mx-1">·</span><span className="text-rose-400">{multiSignalCount} 교집합</span></>}
               </div>
             </div>
           </div>
-          <div className="relative w-full md:w-[400px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <input
-              type="text"
-              className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-              placeholder="테마 또는 종목 검색..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-slate-800/60 border border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              placeholder="종목/테마 검색..." />
           </div>
         </div>
       </header>
 
-      <main className="flex-1 p-6 lg:p-12 max-w-[1600px] mx-auto w-full space-y-16">
-        {filteredThemes.map((theme, idx) => (
-          <section key={idx} className="animate-in fade-in slide-in-from-bottom-6 duration-700 fill-mode-both" style={{ animationDelay: `${idx * 100}ms` }}>
-            <div className="flex items-center gap-6 mb-8">
-              <h2 className="text-3xl font-black text-white tracking-tight">{theme.theme}</h2>
-              <div className="h-px flex-1 bg-slate-800" />
+      {/* ─── Main: 2-Panel ─── */}
+      <main className="flex-1 flex overflow-hidden">
+        {/* ─── Left Panel ─── */}
+        <aside className="w-[420px] shrink-0 border-r border-slate-800 flex flex-col bg-slate-950">
+          {/* Theme Pills */}
+          <div className="shrink-0 p-3 border-b border-slate-800/60">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Filter className="w-3 h-3 text-slate-500" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">테마</span>
             </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button onClick={() => setSelTheme(null)}
+                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all
+                  ${!selTheme ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:border-slate-500'}`}>
+                전체
+              </button>
+              {themes.map(([t, c]) => (
+                <button key={t} onClick={() => setSelTheme(selTheme === t ? null : t)}
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all truncate max-w-[140px]
+                    ${selTheme === t ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:border-slate-500'}`}>
+                  {t.split(' (')[0]} <span className="text-[9px] opacity-60">{c}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-slate-800 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-              <div className="p-8 lg:p-10 bg-slate-900/40 backdrop-blur-sm">
-                <MarketSection title="KRX Market" data={theme.krx || {}} market="KRX" theme={theme.theme} onTickerClick={setSelectedSymbol} intersections={tickerIntersections} usdRate={usdRate} />
+          {/* Market & Signal Filters */}
+          <div className="shrink-0 p-3 border-b border-slate-800/60 space-y-2.5">
+            {/* Market Toggle */}
+            <div className="flex items-center gap-1.5">
+              <Globe className="w-3 h-3 text-slate-500" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mr-1">시장</span>
+              {(['ALL', 'KRX', 'NASDAQ'] as const).map(m => (
+                <button key={m} onClick={() => setSelMarket(m)}
+                  className={`text-[11px] font-bold px-3 py-1 rounded-lg border transition-all
+                    ${selMarket === m ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:border-slate-500'}`}>
+                  {m === 'ALL' ? '전체' : m}
+                </button>
+              ))}
+            </div>
+            {/* Signal Filters */}
+            <div className="flex flex-wrap gap-1">
+              {ALL_SIGNALS.map(sig => {
+                const m = SIGNAL_META[sig];
+                const active = selSignals.has(sig);
+                return (
+                  <button key={sig} onClick={() => toggleSignal(sig)}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-all
+                      ${active ? `${m.bg} ${m.color} ${m.border}` : 'bg-slate-800/30 text-slate-500 border-slate-700/50 hover:border-slate-600'}`}>
+                    {m.icon} {m.label}
+                  </button>
+                );
+              })}
+              {selSignals.size > 0 && (
+                <button onClick={() => setSelSignals(new Set())}
+                  className="text-[10px] text-slate-500 hover:text-slate-300 px-1">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Stock List (Accordion by Signal) */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
+            {filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-600 text-sm">
+                <Activity className="w-8 h-8 mb-2 opacity-30" />
+                <p>조건에 맞는 종목이 없습니다</p>
               </div>
-              <div className="p-8 lg:p-10 bg-slate-900/60 backdrop-blur-sm">
-                <MarketSection title="US Market" data={theme.nasdaq || {}} market="NASDAQ" theme={theme.theme} onTickerClick={setSelectedSymbol} intersections={tickerIntersections} usdRate={usdRate} />
+            ) : (
+              ALL_SIGNALS.map(sig => (
+                <SignalSection key={sig} signal={sig} stocks={groupedBySignal[sig] || []}
+                  activeId={selStock?.uid ?? null} usdRate={usdRate}
+                  onSelect={s => setSelStock(s)} />
+              ))
+            )}
+          </div>
+        </aside>
+
+        {/* ─── Right Panel: Chart ─── */}
+        <section className="flex-1 flex flex-col bg-slate-950 min-w-0">
+          {selStock ? (
+            <>
+              {/* Chart Header */}
+              <div className="shrink-0 flex items-center justify-between px-5 py-3 bg-slate-900/60 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <BarChart2 className="w-5 h-5 text-blue-400" />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-white text-lg">{selStock.name}</span>
+                      <span className="text-xs font-mono text-slate-500">{selStock.tvSymbol}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${selStock.market === 'KRX' ? 'bg-blue-500/15 text-blue-300' : 'bg-rose-500/15 text-rose-300'}`}>
+                        {selStock.market}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-sm font-bold text-blue-400">
+                        {selStock.market === 'NASDAQ' ? `$${selStock.price.toLocaleString()}` : `₩${selStock.price.toLocaleString()}`}
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        시총 {formatCap(selStock.marketCap, selStock.market === 'NASDAQ', usdRate)}
+                      </span>
+                      <div className="flex gap-1 ml-1">
+                        {selStock.signals.map(s => <SignalBadge key={s} sig={s} />)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setSelStock(null)} className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors">
+                  <X className="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+              {/* Chart */}
+              <div className="flex-1">
+                <TVChart symbol={selStock.tvSymbol} />
+              </div>
+            </>
+          ) : (
+            /* Empty State */
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-600/20 to-indigo-600/20 border border-blue-500/20 flex items-center justify-center mb-6">
+                <TrendingUp className="w-10 h-10 text-blue-500/50" />
+              </div>
+              <h2 className="text-xl font-black text-slate-400 mb-2">종목을 선택하세요</h2>
+              <p className="text-sm text-slate-600 max-w-xs">
+                왼쪽 패널에서 종목을 클릭하면 월봉 차트가 표시됩니다.<br />
+                일목균형표 + 20/60 이평선이 기본 적용됩니다.
+              </p>
+              <div className="flex items-center gap-2 mt-6 text-[10px] text-slate-600">
+                <ArrowUpRight className="w-3 h-3" /> 테마·시장·시그널 필터로 종목을 좁혀보세요
               </div>
             </div>
-          </section>
-        ))}
+          )}
+        </section>
       </main>
-
-      {selectedSymbol && <TVChart symbol={selectedSymbol} onClose={() => setSelectedSymbol(null)} />}
     </div>
   );
 }

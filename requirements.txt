@@ -2,3 +2,8 @@ fastapi
 uvicorn
 pydantic
 yfinance
+pandas
+numpy
+requests
+FinanceDataReader
+python-dotenv
