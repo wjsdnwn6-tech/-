@@ -217,6 +217,40 @@ def show_status():
     total_profit_rate = ((total_eval - INITIAL_SEED) / INITIAL_SEED) * 100
     print(f"\n총 자산 평가액 (현금+주식): {total_eval:,.0f} 원 | 총 수익률: {total_profit_rate:+.2f}%")
         
+    c.execute('SELECT ticker FROM portfolio')
+    held_tickers = set(row[0] for row in c.fetchall())
+
+    c.execute('SELECT ticker, action, amount_krw FROM history')
+    ticker_pl = {}
+    for tkr, action, amt in c.fetchall():
+        if tkr not in ticker_pl:
+            ticker_pl[tkr] = {'BUY': 0, 'SELL': 0}
+        ticker_pl[tkr][action] += amt
+    
+    profitable_tickers = set()
+    for tkr, data in ticker_pl.items():
+        if data['SELL'] > 0 and data['SELL'] > data['BUY']:
+            profitable_tickers.add(tkr)
+
+    target_tickers = held_tickers.union(profitable_tickers)
+
+    c.execute('SELECT timestamp, action, ticker, shares, price_krw, amount_krw FROM history ORDER BY id DESC')
+    hist_rows = c.fetchall()
+    
+    print("\n[최근 거래 및 구매 이력 (보유 종목 & 수익 실현 종목)]")
+    count = 0
+    for row in hist_rows:
+        ts, action, tkr, shrs, prc, amt = row
+        if tkr in target_tickers:
+            act_str = "매수" if action == "BUY" else "매도"
+            print(f" * {ts} | {act_str} | {tkr} | {shrs}주 | 단가: {prc:,.0f}원 | 총액: {amt:,.0f}원")
+            count += 1
+            if count >= 20:
+                break
+                
+    if count == 0:
+        print(" * 조건(현재 보유 중이거나 과거에 수익을 본 종목)에 맞는 이력이 없습니다.")
+
     conn.close()
 
 if __name__ == "__main__":
