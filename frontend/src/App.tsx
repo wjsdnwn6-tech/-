@@ -535,11 +535,7 @@ export default function App() {
               </div>
               {/* Chart */}
               <div className="flex-1 bg-white">
-                {selStock.market === 'KRX' ? (
-                  <NaverChart ticker={selStock.ticker} />
-                ) : (
-                  <TVChart symbol={selStock.tvSymbol} />
-                )}
+                <TVChart symbol={selStock.tvSymbol} />
               </div>
             </>
           ) : (
