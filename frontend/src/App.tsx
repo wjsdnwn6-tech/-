@@ -86,7 +86,6 @@ const TVChart = ({ symbol }: { symbol: string }) => {
 // ─── Naver Chart (KRX) ───
 const NaverChart = ({ ticker }: { ticker: string }) => {
   const code = ticker.replace('.KS', '').replace('.KQ', '');
-  // indicators 파라미터를 추가하여 일목균형표를 기본으로 활성화하고 timeframe=month로 월봉을 기본으로 설정합니다.
   const url = `https://finance.naver.com/item/fchart.naver?code=${code}&indicators=ichimoku&timeframe=month`;
   
   return (
@@ -102,11 +101,11 @@ const NaverChart = ({ ticker }: { ticker: string }) => {
         className="w-full flex-1"
         frameBorder="0"
         title="Naver Finance"
-        // referrerPolicy를 삭제하여 네이버의 자체 데이터 차단 우회
       />
     </div>
   );
 };
+
 
 // ─── Signal Badge ───
 const SignalBadge = ({ sig }: { sig: string }) => {
@@ -535,7 +534,11 @@ export default function App() {
               </div>
               {/* Chart */}
               <div className="flex-1 bg-white">
-                <TVChart symbol={selStock.tvSymbol} />
+                {selStock.market === 'KRX' ? (
+                  <NaverChart ticker={selStock.ticker} />
+                ) : (
+                  <TVChart symbol={selStock.tvSymbol} />
+                )}
               </div>
             </>
           ) : (
