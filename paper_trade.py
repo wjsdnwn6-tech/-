@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 
 DB_NAME = "paper_trading.db"
-INITIAL_SEED = 100_000_000  # 기본 가상 자본금: 1억 원
+INITIAL_SEED = 100_000_000  # 기본 가상계좌 자본금 1억원
 FX_RATE = 1400              # 편의상 환율 고정 (1달러 = 1400원)
 
 def is_korean(ticker):
@@ -54,11 +54,11 @@ def get_current_price(ticker):
         tkr = yf.Ticker(ticker)
         return tkr.fast_info['lastPrice']
     except Exception as e:
-        print(f"[오류] {ticker}의 현재 가격을 가져오지 못했습니다: {e}")
+        print(f"[오류] {ticker}의 현재 가격을 가져오지 못했습니다. {e}")
         return None
 
 def get_market_fee(ticker):
-    # 한국 주식: 수수료+세금 포함 보수적으로 0.23% (매수/매도 각각 0.115%로 가정)
+    # 한국 주식: 수수료+세금 포함 보수적으로 0.23% (매수/매도 각각 0.115% 적용)
     # 미국 주식: 수수료 0.1% (매수/매도 각각)
     return 0.00115 if is_korean(ticker) else 0.0010
 
@@ -74,7 +74,7 @@ def do_buy(ticker):
     c.execute('SELECT cash FROM account WHERE id=1')
     cash = c.fetchone()[0]
     
-    # 전체 가상 시드(1억)의 1% = 1,000,000원 고정 배팅
+    # 전체 자본금의 1% = 1,000,000원 고정 배팅
     target_amount = INITIAL_SEED * 0.01
     
     if cash < target_amount:
@@ -87,7 +87,7 @@ def do_buy(ticker):
     
     shares = int(target_amount // execution_price_krw)
     if shares == 0:
-        print(f"[실패] 1주도 살 수 없는 가격입니다. 1주 체결가(원): {execution_price_krw:,.0f}원")
+        print(f"[실패] 1주도 살 수 없는 가격입니다. 1주 체결가: {execution_price_krw:,.0f}원")
         return False
         
     fee_rate = get_market_fee(ticker)
@@ -178,7 +178,7 @@ def do_sell(ticker):
     print(f"\n✅ [매도 체결 완료] {ticker} (전량 매도)")
     print(f" - 1주 체결가(원화, 0.2% 슬리피지 포함): {execution_price_krw:,.0f} 원")
     print(f" - 수량: {shares}주")
-    print(f" - 수수료/세금: {fee:,.0f} 원")
+    print(f" - 수수료 및 세금: {fee:,.0f} 원")
     print(f" - 총 회수 금액: {total_revenue:,.0f} 원")
     print(f" - 수익금: {profit:,.0f} 원 ({profit_rate:.2f}%)")
     return True
@@ -188,10 +188,16 @@ def show_status():
     c = conn.cursor()
     
     c.execute('SELECT cash FROM account WHERE id=1')
-    cash = c.fetchone()[0]
+    row = c.fetchone()
+    if not row:
+        init_db()
+        c.execute('SELECT cash FROM account WHERE id=1')
+        row = c.fetchone()
+        
+    cash = row[0]
     
     print("\n=====================================")
-    print(f" 💰 현재 가상 계좌 현금: {cash:,.0f} 원")
+    print(f" 💰 현재 가상계좌 현금: {cash:,.0f} 원")
     print("=====================================")
     
     c.execute('SELECT ticker, shares, avg_price_krw FROM portfolio')
@@ -212,10 +218,10 @@ def show_status():
             profit_rate = ((eval_amount - buy_amount) / buy_amount) * 100
             
             total_eval += eval_amount
-            print(f" * {ticker} | {shares}주 | 매수평단: {avg_price_krw:,.0f}원 | 현재가: {price_krw:,.0f}원 | 수익률: {profit_rate:+.2f}% | 평가금액: {eval_amount:,.0f}원")
+            print(f" * {ticker} | {shares}주 | 매수단가: {avg_price_krw:,.0f}원 | 현재가: {price_krw:,.0f}원 | 수익률: {profit_rate:+.2f}% | 평가금액: {eval_amount:,.0f}원")
             
     total_profit_rate = ((total_eval - INITIAL_SEED) / INITIAL_SEED) * 100
-    print(f"\n총 자산 평가액 (현금+주식): {total_eval:,.0f} 원 | 총 수익률: {total_profit_rate:+.2f}%")
+    print(f"\n총 자산 평가(현금+주식): {total_eval:,.0f} 원 | 총 수익률: {total_profit_rate:+.2f}%")
         
     c.execute('SELECT ticker FROM portfolio')
     held_tickers = set(row[0] for row in c.fetchall())
@@ -249,13 +255,13 @@ def show_status():
                 break
                 
     if count == 0:
-        print(" * 조건(현재 보유 중이거나 과거에 수익을 본 종목)에 맞는 이력이 없습니다.")
+        print(" * 조건(현재 보유 중이거나 과거 수익 낸 종목)에 맞는 이력이 없습니다.")
 
     conn.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Paper Trading System")
-    parser.add_argument('action', choices=['buy', 'sell', 'status'], help="수행할 액션 (buy, sell, status)")
+    parser.add_argument('action', choices=['buy', 'sell', 'status'], help="실행할 액션 (buy, sell, status)")
     parser.add_argument('--ticker', type=str, help="종목 티커 (예: AAPL, 005930.KS)")
     
     args = parser.parse_args()
@@ -265,13 +271,13 @@ if __name__ == "__main__":
         if not args.ticker:
             print("[오류] 매수할 종목의 티커를 --ticker 로 입력해주세요.")
         else:
-            print("\n[안내] 장이 닫혀있을 경우, 현재가(최근 종가)를 다음날 시작가로 가정하여 즉시 가상 매수합니다.")
+            print("\n[안내] 장이 열려있을 경우, 현재가(최근 종가)를 기준으로 가정한 후 즉시 가상 매수합니다.")
             do_buy(args.ticker)
     elif args.action == 'sell':
         if not args.ticker:
             print("[오류] 매도할 종목의 티커를 --ticker 로 입력해주세요.")
         else:
-            print("\n[안내] 장이 닫혀있을 경우, 현재가(최근 종가)를 다음날 시작가로 가정하여 즉시 가상 매도합니다.")
+            print("\n[안내] 장이 열려있을 경우, 현재가(최근 종가)를 기준으로 가정한 후 즉시 가상 매도합니다.")
             do_sell(args.ticker)
     elif args.action == 'status':
         show_status()

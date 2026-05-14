@@ -1,5 +1,5 @@
 @echo off
 cd /d "%~dp0"
-echo 일목균형표 스캐너를 시작합니다...
+echo ?�목균형???�캐?��? ?�작?�니??..
 python analyze_ichimoku.py
 pause
