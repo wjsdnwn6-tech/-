@@ -23,6 +23,8 @@ type FlatStock = {
 // ─── Constants ───
 const SIGNAL_META: Record<string, { label: string; icon: string; color: string; bg: string; border: string }> = {
   monthly_pattern:             { label: '월봉 지지 후 상승 (바닥권 & MA)', icon: '🛡️', color: 'text-cyan-300',    bg: 'bg-cyan-500/15',    border: 'border-cyan-500/30' },
+  top30_pattern_match:         { label: '🔥 급등주 선행 패턴 일치 (조건)', icon: '🔥', color: 'text-orange-300', bg: 'bg-orange-500/15', border: 'border-orange-500/30' },
+  top30_shape_match:           { label: '📈 급등주 선행 패턴 일치 (모양)', icon: '📈', color: 'text-violet-300', bg: 'bg-violet-500/15', border: 'border-violet-500/30' },
   cloud_twist:                 { label: '양운 전환 (당일)', icon: '🟢', color: 'text-emerald-300', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30' },
   cloud_twist_1w:              { label: '1주 내 양운 전환', icon: '❇️', color: 'text-teal-300', bg: 'bg-teal-500/15', border: 'border-teal-500/30' },
   ma200_support_breakout:      { label: '200일선 지지/돌파', icon: '📈', color: 'text-pink-300',    bg: 'bg-pink-500/15',    border: 'border-pink-500/30' },

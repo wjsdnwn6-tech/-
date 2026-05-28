@@ -59,6 +59,180 @@ except Exception as e:
 
 print("[준비 완료]\n")
 
+
+# ============================================================
+# 급등주 선행 패턴 (Top 30 그림자) 추출 및 매칭 로직
+# ============================================================
+TOP30_TEMPLATES = []
+
+def extract_features_for_template(df):
+    try:
+        if len(df) < 120: return None
+        # 최근 급등 캔들(당일) 제외
+        df_past = df.iloc[:-1].copy()
+        
+        # 주봉 변환
+        df_w = df_past.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+        if len(df_w) < 20: return None
+        
+        df_w['ma20'] = df_w['Close'].rolling(window=20).mean()
+        df_w = df_w.dropna()
+        if len(df_w) < 4: return None
+        
+        w_ma20_slope = (df_w['ma20'].iloc[-1] - df_w['ma20'].iloc[-4]) / df_w['ma20'].iloc[-4]
+        w_distance = (df_w['Close'].iloc[-1] - df_w['ma20'].iloc[-1]) / df_w['ma20'].iloc[-1]
+        w_volatility = (df_w['High'].iloc[-4:].max() - df_w['Low'].iloc[-4:].min()) / df_w['ma20'].iloc[-1]
+        
+        # 월봉 변환
+        df_m = df_past.resample('ME').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+        m_distance = 0
+        if len(df_m) >= 20:
+            df_m['ma20'] = df_m['Close'].rolling(window=20).mean()
+            df_m = df_m.dropna()
+            if len(df_m) > 0:
+                m_distance = (df_m['Close'].iloc[-1] - df_m['ma20'].iloc[-1]) / df_m['ma20'].iloc[-1]
+        
+        # 60일 종가 차트 궤적 정규화 (Shape)
+        recent_60_closes = df_past['Close'].tail(60).values
+        if len(recent_60_closes) == 60:
+            mean = recent_60_closes.mean()
+            std = recent_60_closes.std()
+            if std == 0: std = 1
+            shape_array = (recent_60_closes - mean) / std
+        else:
+            shape_array = None
+
+        return {
+            'w_slope': w_ma20_slope,
+            'w_dist': w_distance,
+            'w_vol': w_volatility,
+            'm_dist': m_distance,
+            'shape': shape_array
+        }
+    except Exception:
+        return None
+
+def extract_current_features(df):
+    try:
+        if len(df) < 120: return None
+        df_w = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+        if len(df_w) < 20: return None
+        
+        df_w['ma20'] = df_w['Close'].rolling(window=20).mean()
+        df_w = df_w.dropna()
+        if len(df_w) < 4: return None
+        
+        w_ma20_slope = (df_w['ma20'].iloc[-1] - df_w['ma20'].iloc[-4]) / df_w['ma20'].iloc[-4]
+        w_distance = (df_w['Close'].iloc[-1] - df_w['ma20'].iloc[-1]) / df_w['ma20'].iloc[-1]
+        w_volatility = (df_w['High'].iloc[-4:].max() - df_w['Low'].iloc[-4:].min()) / df_w['ma20'].iloc[-1]
+        
+        df_m = df.resample('ME').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+        m_distance = 0
+        if len(df_m) >= 20:
+            df_m['ma20'] = df_m['Close'].rolling(window=20).mean()
+            df_m = df_m.dropna()
+            if len(df_m) > 0:
+                m_distance = (df_m['Close'].iloc[-1] - df_m['ma20'].iloc[-1]) / df_m['ma20'].iloc[-1]
+
+        # 60일 종가 차트 궤적 정규화 (Shape)
+        recent_60_closes = df['Close'].tail(60).values
+        if len(recent_60_closes) == 60:
+            mean = recent_60_closes.mean()
+            std = recent_60_closes.std()
+            if std == 0: std = 1
+            shape_array = (recent_60_closes - mean) / std
+        else:
+            shape_array = None
+
+        return {
+            'w_slope': w_ma20_slope,
+            'w_dist': w_distance,
+            'w_vol': w_volatility,
+            'm_dist': m_distance,
+            'shape': shape_array
+        }
+    except Exception:
+        return None
+
+def is_pattern_matched(current_feat, templates):
+    """
+    조건 매칭(옵션 B)과 모양 매칭(옵션 A) 결과를 튜플로 반환합니다.
+    return (is_condition_match, is_shape_match)
+    """
+    if not current_feat or not templates: return False, False
+    
+    cond_match = False
+    shape_match = False
+    
+    import numpy as np
+
+    for t in templates:
+        # 1. 조건 매칭 (옵션 B)
+        if not cond_match:
+            diff_slope = abs(current_feat['w_slope'] - t['w_slope'])
+            diff_dist = abs(current_feat['w_dist'] - t['w_dist'])
+            diff_vol = abs(current_feat['w_vol'] - t['w_vol'])
+            diff_m_dist = abs(current_feat['m_dist'] - t['m_dist'])
+            
+            if diff_slope < 0.05 and diff_dist < 0.05 and diff_vol < 0.05 and diff_m_dist < 0.10:
+                cond_match = True
+
+        # 2. 모양 매칭 (옵션 A - 피어슨 상관계수 연산)
+        if not shape_match and current_feat['shape'] is not None and t['shape'] is not None:
+            # 두 배열은 평균 0, 표준편차 1로 정규화되어 있으므로 내적 후 N으로 나누면 Pearson Correlation이 됨
+            corr = np.dot(current_feat['shape'], t['shape']) / 60.0
+            if corr > 0.90:  # 90% 이상 일치
+                shape_match = True
+
+        if cond_match and shape_match:
+            break
+
+    return cond_match, shape_match
+def build_top30_templates(krx_tickers, us_tickers):
+    global TOP30_TEMPLATES
+    TOP30_TEMPLATES = []
+    print(f"\n[패턴 스캔 준비] 당일 급등한 상위 종목 {len(krx_tickers) + len(us_tickers)}개의 급등 직전 템플릿 추출 중...")
+    
+    import datetime
+    start_date = (datetime.datetime.now() - datetime.timedelta(days=700)).strftime('%Y-%m-%d')
+    
+    for code in krx_tickers:
+        try:
+            df = fdr.DataReader(code, start_date)
+            if not df.empty:
+                feat = extract_features_for_template(df)
+                if feat: TOP30_TEMPLATES.append(feat)
+        except Exception:
+            pass
+            
+    if us_tickers:
+        try:
+            import yfinance as yf
+            data = yf.download(us_tickers, period="2y", interval="1d", progress=False, threads=True)
+            if isinstance(data.columns, pd.MultiIndex):
+                for t in us_tickers:
+                    try:
+                        if t in data['Close'].columns:
+                            df_t = pd.DataFrame({
+                                'Open': data['Open'][t],
+                                'High': data['High'][t],
+                                'Low': data['Low'][t],
+                                'Close': data['Close'][t]
+                            }).dropna()
+                            feat = extract_features_for_template(df_t)
+                            if feat: TOP30_TEMPLATES.append(feat)
+                    except Exception: pass
+            else:
+                df_t = data.dropna()
+                feat = extract_features_for_template(df_t)
+                if feat: TOP30_TEMPLATES.append(feat)
+        except Exception:
+            pass
+            
+    print(f"  > 완료: 유의미한 급등 전조 패턴 템플릿 {len(TOP30_TEMPLATES)}개 생성됨.")
+
+
+
 def calculate_ichimoku(df):
     nine_period_high = df['High'].rolling(window=9).max()
     nine_period_low = df['Low'].rolling(window=9).min()
@@ -181,6 +355,16 @@ def analyze_stocks(tickers, ticker_to_name):
                 except Exception as e:
                     logger.debug(f"{ticker} MA200 분석 실패: {e}")
 
+            # Top 30 그림자 (급등 전조 패턴) 매칭 (옵션 A + B)
+            if len(TOP30_TEMPLATES) > 0:
+                current_feat = extract_current_features(df)
+                if current_feat:
+                    cond_match, shape_match = is_pattern_matched(current_feat, TOP30_TEMPLATES)
+                    if cond_match:
+                        signals.append("top30_pattern_match")
+                    if shape_match:
+                        signals.append("top30_shape_match")
+
             # 4. 월봉: 대세 하락 후 바닥 다지기(지지) & 강한 장대양봉 돌파(상승) 패턴
             try:
                 try:
@@ -189,46 +373,53 @@ def analyze_stocks(tickers, ticker_to_name):
                     df_m = df.resample('M').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
 
                 if len(df_m) >= 6:
-                    lookback = min(24, len(df_m))
-                    recent_24m = df_m.iloc[-lookback:]
-                    max_high_24m = recent_24m['High'].max()
-                    min_low_24m = recent_24m['Low'].min()
-                    
-                    # 1. 고점 대비 최소 40% 이상 하락한 이력 (대세 하락장/바닥권)
-                    if max_high_24m >= min_low_24m * 1.6:
-                        def is_strong_green(candle):
-                            c_open = candle['Open'].item() if isinstance(candle['Open'], pd.Series) else candle['Open']
-                            c_close = candle['Close'].item() if isinstance(candle['Close'], pd.Series) else candle['Close']
-                            return (c_close > c_open) and (c_close >= c_open * 1.15) # 최소 15% 이상 상승한 장대양봉
+                    def is_strong_green(candle):
+                        c_open = candle['Open'].item() if isinstance(candle['Open'], pd.Series) else candle['Open']
+                        c_close = candle['Close'].item() if isinstance(candle['Close'], pd.Series) else candle['Close']
+                        return (c_close > c_open) and (c_close >= c_open * 1.15) # 최소 15% 이상 상승한 장대양봉
 
-                        # 2. 이번 달(-1) 또는 지난 달(-2)에 강한 장대양봉 발생 여부
-                        breakout_idx = None
-                        if is_strong_green(df_m.iloc[-1]):
-                            breakout_idx = -1
-                        elif is_strong_green(df_m.iloc[-2]):
-                            breakout_idx = -2
+                    # 1. 이번 달(-1) 또는 지난 달(-2)에 강한 장대양봉 발생 여부
+                    breakout_idx = None
+                    if is_strong_green(df_m.iloc[-1]):
+                        breakout_idx = -1
+                    elif is_strong_green(df_m.iloc[-2]):
+                        breakout_idx = -2
+                        
+                    if breakout_idx is not None:
+                        # 2. 돌파 캔들 '이전'의 데이터만으로 2년(24개월) 고점/저점을 계산 
+                        # (돌파 캔들 당일의 급등이 2년 고점을 만들어서 바닥으로 착각하는 논리적 오류 방지)
+                        if breakout_idx == -1:
+                            historical_df = df_m.iloc[:-1]
+                        else:
+                            historical_df = df_m.iloc[:-2]
                             
-                        if breakout_idx is not None:
-                            # 3. 장대양봉 직전 3~4개월간의 바닥 다지기(지지) 확인
-                            start_idx = breakout_idx - 4
-                            end_idx = breakout_idx
-                            if start_idx >= -len(df_m):
-                                base_candles = df_m.iloc[start_idx:end_idx]
-                                base_low = base_candles['Low'].min()
-                                base_high = base_candles['High'].max()
-                                
-                                # 바닥권 조건: 지지 구간의 고점이 2년 전체 변동폭의 하위 35% 이내에 있어야 함 (확실한 바닥권)
-                                range_24m = max_high_24m - min_low_24m
-                                bottom_threshold = min_low_24m + (range_24m * 0.35)
-                                is_at_bottom = (base_high <= bottom_threshold)
-                                
-                                # 돌파 조건: 장대양봉의 종가가 지지 구간의 고점을 뚫어내거나 근접해야 함
-                                b_candle = df_m.iloc[breakout_idx]
-                                b_close = b_candle['Close'].item() if isinstance(b_candle['Close'], pd.Series) else b_candle['Close']
-                                is_breaking_out = (b_close >= base_high * 0.95)
-                                
-                                if is_at_bottom and is_breaking_out:
-                                    signals.append("monthly_pattern")
+                        lookback = min(24, len(historical_df))
+                        if lookback > 0:
+                            historical_24m = historical_df.iloc[-lookback:]
+                            max_high_24m = historical_24m['High'].max()
+                            min_low_24m = historical_24m['Low'].min()
+                            
+                            # 3. 고점 대비 최소 40% 이상 하락한 이력 (대세 하락장/바닥권)
+                            if max_high_24m >= min_low_24m * 1.6:
+                                # 4. 장대양봉 직전 3~4개월간의 바닥 다지기(지지) 확인
+                                start_idx = breakout_idx - 4
+                                end_idx = breakout_idx
+                                if start_idx >= -len(df_m):
+                                    base_candles = df_m.iloc[start_idx:end_idx]
+                                    base_high = base_candles['High'].max()
+                                    
+                                    # 바닥권 조건: 지지 구간의 고점이 2년 전체 변동폭의 하위 35% 이내에 있어야 함
+                                    range_24m = max_high_24m - min_low_24m
+                                    bottom_threshold = min_low_24m + (range_24m * 0.35)
+                                    is_at_bottom = (base_high <= bottom_threshold)
+                                    
+                                    # 돌파 조건: 장대양봉의 종가가 지지 구간의 고점을 뚫어내거나 근접해야 함
+                                    b_candle = df_m.iloc[breakout_idx]
+                                    b_close = b_candle['Close'].item() if isinstance(b_candle['Close'], pd.Series) else b_candle['Close']
+                                    is_breaking_out = (b_close >= base_high * 0.95)
+                                    
+                                    if is_at_bottom and is_breaking_out:
+                                        signals.append("monthly_pattern")
             except Exception as e:
                 logger.debug(f"{ticker} 월봉 분석 실패: {e}")
 
@@ -401,7 +592,9 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 BASE_DASHBOARD_URL = "http://localhost:5173"
 
 labels = {
-    "monthly_pattern": "🛡️ 월봉 지지 후 상승 패턴",
+    "monthly_pattern": "🛡️ 월봉 지지 후 상승 (바닥권)",
+    "top30_pattern_match": "🔥 급등주 선행 패턴 일치 (조건)",
+    "top30_shape_match": "📈 급등주 선행 패턴 일치 (모양)",
     "cloud_twist": "🟢 양운 전환 (당일)",
     "cloud_twist_1w": "❇️ 1주 내 양운 전환: 음운에서 양운 크로스오버",
     "ma200_support_breakout": "📈 200일선: 지지 또는 돌파",
@@ -539,6 +732,21 @@ def get_realtime_data():
         data['TNX_NEWS'] = tnx_news_str if tnx_news_str else "- 최근 10년물 국채 관련 특이 뉴스 없음."
     except Exception:
          data['TNX_NEWS'] = "- 최근 10년물 국채 관련 특이 뉴스 없음."
+
+    # 2-Year Yield (FRED DGS2) & News (SHY)
+    try:
+        import FinanceDataReader as fdr
+        dgs2 = float(fdr.DataReader('FRED:DGS2').iloc[-1,0])
+        data['DGS2'] = f"{round(dgs2, 3):.3f}"
+    except Exception:
+        data['DGS2'] = "4.000"
+        
+    try:
+        shy_news = yf.Ticker('SHY').news[:3]
+        shy_news_str = "\n\n".join([f"🔹 {translate_to_ko(n.get('content', {}).get('title', 'No title'))}\n  └ {translate_to_ko(n.get('content', {}).get('summary', 'No summary'))}" for n in shy_news])
+        data['DGS2_NEWS'] = shy_news_str if shy_news_str else "- 최근 2년물 국채 관련 특이 뉴스 없음."
+    except Exception:
+        data['DGS2_NEWS'] = "- 최근 2년물 국채 관련 특이 뉴스 없음."
 
     # BTC-USD & News
     try:
@@ -765,10 +973,10 @@ def get_top30_us_gainers():
             chg = float(info['chg'])
             report_lines.append(f"{idx:02d}위 | {info['sym']} {info['name']} (+{chg:.2f}%) | {s_name}")
         
-        return "\n".join(report_lines)
+        return "\n".join(report_lines), [info['sym'] for info in top30_info]
     except Exception as e:
         logger.warning(f"US Top 30 분석 실패: {e}")
-        return f"- 미국 시장 분석 중 오류 발생: {e}"
+        return f"- 미국 시장 분석 중 오류 발생: {e}", []
 
 def send_to_discord(top30_krx_text, top30_us_text):
     if not DISCORD_WEBHOOK_URL:
@@ -826,35 +1034,27 @@ def send_to_discord(top30_krx_text, top30_us_text):
 
 
     try:
-        import yfinance as yf
-        irx_hist = yf.Ticker('^IRX').history(period='5d')
-        irx = float(irx_hist['Close'].iloc[-1])
         tnx_float = float(tnx)
-        spread = tnx_float - irx
+        dgs2_float = float(d.get('DGS2', '4.000'))
+        spread = tnx_float - dgs2_float
         
-        if spread <= -1.0:
-            forecast_result = f"확률적으로 **강력한 금리 '인하' 임박 (인하 확률 95% 이상)**"
-        elif spread < -0.2:
-            forecast_result = f"확률적으로 **점진적 금리 '인하' 사이클 진입 (인하 확률 70% 이상)**"
-        elif spread <= 0.5:
-            forecast_result = f"확률적으로 **금리 동결(Pause) 및 관망 (인상/인하 팽팽함)**"
+        if spread < 0.0:
+            forecast_result = f"장단기 금리 역전 (스프레드 {spread:+.3f}%p). 🚨 역사적으로 경기 침체의 가장 강력한 선행 지표이며, 머지않아 연준의 강력한 '금리 인하' 사이클이 시작될 확률이 높습니다."
+        elif spread <= 0.3:
+            forecast_result = f"수익률 곡선 평탄화 (스프레드 {spread:+.3f}%p). 경기 둔화 우려 증가 및 연준의 점진적 완화 스탠스 가능성."
         else:
-            forecast_result = f"확률적으로 **추가 금리 '인상' 또는 고금리 장기화 (인상 확률 80% 이상)**"
+            forecast_result = f"정상적인 수익률 곡선 (스프레드 {spread:+.3f}%p). 안정적인 경제 성장 기대."
 
-        rate_forecast_text = f"""📌 [앞으로의 금리의 전망]
-현재 미 10년물 국채 금리는 {tnx_float:.3f}%이며, 현재 중앙은행 정책금리 대용치(13주물 T-Bill)는 {irx:.3f}%로, 양자의 차이(스프레드)는 **{spread:+.3f}%p**입니다.
-과거 50년 데이터를 분석해 보면:
-- **금리 인상 시기**: 보통 장기금리(10년물)가 단기금리보다 0.5%p ~ 1.5%p 이상 높게 유지됩니다.
-- **금리 인하 시기**: 경기 침체 우려로 장단기 금리 역전 현상이 발생하며, 통상 장기금리가 단기금리보다 0.5%p ~ 1.5%p 이상 낮아질 때 연준이 파격적인 금리 인하를 단행했습니다.
-👉 종합 분석: {forecast_result}
+        rate_forecast_text = f"""📌 [장단기 금리차 (10년물 - 2년물) 분석]
+현재 미 10년물 국채 금리는 {tnx_float:.3f}%이며, 미 2년물 국채 금리는 {dgs2_float:.3f}%입니다. 
+양자의 차이(스프레드)는 **{spread:+.3f}%p**입니다.
 
-📌 [FOMC 핵심 주시 지표 현황]
-FOMC가 금리를 결정할 때 최우선으로 보는 최신 지표는 다음과 같습니다:
-1. **Core PCE (근원 개인소비지출)**: 연준의 실질적 물가 목표치 (현재 고착화 여부 주목)
-2. **NFP (비농업고용지수) & 실업률**: 고용 시장의 냉각 속도 (실업률 4% 돌파 여부가 금리 인하 트리거)
-3. **ISM 서비스업 PMI**: 미국 경제의 70%를 차지하는 서비스업 물가 및 성장 둔화 여부"""
+💡 과거 50년 데이터를 분석해 보면:
+- **금리 인상(긴축) 사이클**: 연준이 정책금리를 올리면서 2년물 금리가 급등해 10년물 금리를 '역전'(스프레드 마이너스)하는 현상이 자주 발생했습니다.
+- **금리 인하(완화) 사이클**: 역전된 금리차가 다시 '정상화(스프레드 0 이상 돌파)'되는 시점 전후로 연준이 경기 방어를 위해 급격한 금리 인하를 단행했으며, 이때 증시의 변동성도 가장 컸습니다.
+👉 현재 상황 분석: {forecast_result}"""
     except Exception as e:
-        rate_forecast_text = f"📌 [앞으로의 금리의 전망]\n데이터 수집 오류로 분석을 생략합니다. ({e})"
+        rate_forecast_text = f"📌 [장단기 금리차 분석]\n데이터 수집 오류로 분석을 생략합니다. ({e})"
 
     messages = [
         f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -897,18 +1097,17 @@ FOMC가 금리를 결정할 때 최우선으로 보는 최신 지표는 다음�
 📈 핵심 자산 상관관계 및 거시 지표 분석 (1/2)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🇺🇸 미 국채 10년물 금리 (TNX) : {tnx}%
+🇺🇸 미 국채 2년물 금리 (DGS2) : {d.get('DGS2', '4.000')}%
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {rate_forecast_text}
 
-📌 [현재 상황 및 배경]
-10년물 국채금리는 글로벌 자산의 '무위험 수익률(할인율)'로, 증시 밸류에이션에 절대적 영향을 미칩니다.
-현재 연준(Fed)의 금리 인하 속도 둔화와 미국의 막대한 재정 적자로 인한 국채 발행 우려가 맞물려, 금리가 쉽게 떨어지지 않고 하방 경직성을 보이고 있습니다.
-
 📌 [증시 영향 및 전망]
-금리가 4% 위에서 고공행진할 경우, 주식보다 채권 투자의 매력이 커지며 기관 자금의 이탈이 발생할 수 있습니다.
-반대로 고용 지표 둔화 등으로 연준이 비둘기파적 스탠스를 취하며 금리가 꺾인다면, 그동안 짓눌렸던 가치주, 배당주, 중소형주로의 강력한 순환매 장세가 연출될 가능성이 높습니다.
+10년물 국채금리는 주식 등 자산 가치의 '할인율'로 작용하며, 2년물 금리는 '연준의 통화정책(금리 인상/인하)'을 가장 민감하게 반영합니다. 장단기 금리차가 역전되었다가 정상화되는 구간에서는 시장의 방향성이 크게 바뀔 수 있으므로 리스크 관리가 필수적입니다.
 
-🗞️ [최근 뉴스 동향]
+🗞️ [최근 2년물 국채 관련 뉴스 (통화정책 선행지표)]
+{d.get('DGS2_NEWS', '- 최근 뉴스 없음')}
+
+🗞️ [최근 10년물 국채 관련 뉴스 (시장금리 벤치마크)]
 {d.get('TNX_NEWS', '- 최근 뉴스 없음')}""",
 
         f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1035,10 +1234,13 @@ IT·커뮤니케이션 P/E 29배, 차익 실현 압력 극심""",
 
         for chunk_idx, chunk in enumerate(chunks):
             try:
+                part_str = f" (부분 {chunk_idx+1}/{len(chunks)})" if len(chunks) > 1 else ""
+                if part_str:
+                    chunk = f"**{part_str.strip()}**\n{chunk}"
+                
                 payload = {"content": chunk}
                 response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
                 if response.status_code in [200, 204]:
-                    part_str = f" (부분 {chunk_idx+1}/{len(chunks)})" if len(chunks) > 1 else ""
                     print(f"[성공] 디스코드 메시지 #{i+1}{part_str} 전송 완료.")
                 else:
                     print(f"[오류] 디스코드 메시지 #{i+1} 전송 실패: HTTP {response.status_code}")
@@ -1105,10 +1307,6 @@ if __name__ == "__main__":
                 "krx": results_krx,
                 "nasdaq": results_nasdaq
             })
-
-    # 당일 상승률 탑 30 분석 및 리포트/데이터 획득
-    top30_krx_text, top30_data = get_top30_krx_gainers()
-    top30_us_text = get_top30_us_gainers()
 
     if not skip_scan:
         # 웹 대시보드용 JSON 파일 저장 (루트 + frontend/public 양쪽에 저장)
