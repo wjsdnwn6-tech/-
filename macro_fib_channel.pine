@@ -1,0 +1,60 @@
+//@version=5
+indicator("Macro Fibonacci Channel (Antigravity)", overlay=true, max_lines_count=500)
+
+// ─── 입력 설정 ───
+lookback = input.int(200, title="장기 채널 기준 기간 (월/주/일)", minval=10, tooltip="기본값 200. 거대한 장기 추세를 잡기 위해 긴 기간을 사용합니다.")
+mult = input.float(1.0, title="채널 너비 배수", step=0.1)
+show_labels = input.bool(true, title="피보나치 레벨 라벨 표시")
+color_theme = input.string("Dark", options=["Dark", "Light"], title="테마 색상")
+
+// ─── 선형 회귀 (Linear Regression) 채널 계산 ───
+// 장기 추세의 중심선(기울기)을 구합니다.
+src = close
+linReg = ta.linreg(src, lookback, 0)
+// 표준편차를 이용해 채널의 너비를 결정합니다.
+dev = ta.stdev(src, lookback) * mult
+
+// ─── 피보나치 비율 레벨 ───
+// 중심선(0.0)을 기준으로 상단 저항선 및 하단 지지선을 피보나치 비율로 전개합니다.
+fib_0_236 = linReg + dev * 0.236
+fib_0_382 = linReg + dev * 0.382
+fib_0_5   = linReg + dev * 0.500
+fib_0_618 = linReg + dev * 0.618
+fib_0_786 = linReg + dev * 0.786
+fib_1_0   = linReg + dev * 1.000   // 1차 정상 채널 상단
+fib_1_618 = linReg + dev * 1.618   // 슈팅 구간
+fib_2_618 = linReg + dev * 2.618   // 광기 구간
+fib_3_618 = linReg + dev * 3.618   // 버블 구간
+fib_4_236 = linReg + dev * 4.236   // 절대 인절/익절 저항선
+
+// ─── 플롯 (Plotting) ───
+// 중심선
+plot(linReg, title="Base (0.0)", color=color.gray, linewidth=2)
+
+// 상단 레벨
+plot(fib_0_236, color=color.new(color.red, 70), title="0.236")
+plot(fib_0_382, color=color.new(color.orange, 70), title="0.382")
+plot(fib_0_5, color=color.new(color.yellow, 70), title="0.5")
+plot(fib_0_618, color=color.new(color.green, 70), title="0.618")
+plot(fib_0_786, color=color.new(color.teal, 70), title="0.786")
+plot(fib_1_0, color=color.new(color.blue, 40), linewidth=2, title="1.0 (정상 상단)")
+plot(fib_1_618, color=color.new(color.purple, 40), linewidth=2, title="1.618")
+plot(fib_2_618, color=color.new(color.fuchsia, 30), linewidth=2, title="2.618")
+plot(fib_3_618, color=color.new(color.red, 20), linewidth=2, title="3.618")
+plot(fib_4_236, color=color.new(color.red, 0), linewidth=3, title="4.236 (인절)")
+
+// 하단 레벨 (지지선)
+plot(linReg - dev * 0.236, color=color.new(color.gray, 70), title="-0.236")
+plot(linReg - dev * 0.382, color=color.new(color.gray, 70), title="-0.382")
+plot(linReg - dev * 0.618, color=color.new(color.gray, 70), title="-0.618")
+plot(linReg - dev * 1.0, color=color.new(color.gray, 50), linewidth=2, title="-1.0 (정상 하단)")
+
+// ─── 라벨 (Labels) ───
+if show_labels and barstate.islast
+    label.new(bar_index + 2, fib_4_236, "4.236 (최종 익절)", color=color.new(color.red, 0), textcolor=color.white, style=label.style_label_left, size=size.normal)
+    label.new(bar_index + 2, fib_3_618, "3.618 (광기/버블)", color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_left, size=size.small)
+    label.new(bar_index + 2, fib_2_618, "2.618 (슈팅 진행)", color=color.new(color.fuchsia, 30), textcolor=color.white, style=label.style_label_left, size=size.small)
+    label.new(bar_index + 2, fib_1_0, "1.0 (정상 상단)", color=color.new(color.blue, 0), textcolor=color.white, style=label.style_label_left, size=size.small)
+    label.new(bar_index + 2, linReg, "0.0 (중심선)", color=color.gray, textcolor=color.white, style=label.style_label_left, size=size.small)
+    label.new(bar_index + 2, linReg - dev * 1.0, "-1.0 (정상 하단)", color=color.new(color.gray, 0), textcolor=color.white, style=label.style_label_left, size=size.small)
+

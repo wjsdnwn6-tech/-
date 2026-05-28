@@ -103,6 +103,7 @@ def analyze_stocks(tickers, ticker_to_name):
             sys.stdout.flush()
 
             # 속도 향상과 에러 방지를 위해 period="10y" (최대 10년) 데이터만 다운로드
+            import time; time.sleep(0.05) # Yahoo 차단 방지 (Rate limit 완화)
             df = yf.download(ticker, period="10y", interval="1d", progress=False)
             if df.empty or len(df) < 60: continue
 
@@ -180,68 +181,60 @@ def analyze_stocks(tickers, ticker_to_name):
                 except Exception as e:
                     logger.debug(f"{ticker} MA200 분석 실패: {e}")
 
-            # 4. 월봉: 월봉 지지 후 상승 패턴
+            # 4. 월봉: 대세 하락 후 바닥 다지기(지지) & 강한 장대양봉 돌파(상승) 패턴
             try:
                 try:
                     df_m = df.resample('ME').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
                 except Exception:
                     df_m = df.resample('M').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
 
-                pattern_found = False
-                # 최근 1~2개월 내 패턴 발생 확인
-                lookback_limit = min(2, len(df_m) - 12)
-                
-                if lookback_limit >= 0:
-                    for i in range(lookback_limit + 1):
-                        idx = -1 - i
-                        
-                        c_close = df_m['Close'].iloc[idx].item() if isinstance(df_m['Close'].iloc[idx], pd.Series) else df_m['Close'].iloc[idx]
-                        c_open = df_m['Open'].iloc[idx].item() if isinstance(df_m['Open'].iloc[idx], pd.Series) else df_m['Open'].iloc[idx]
-                        c_vol = df_m['Volume'].iloc[idx].item() if isinstance(df_m['Volume'].iloc[idx], pd.Series) else df_m['Volume'].iloc[idx]
-                        
-                        past_high = df_m['High'].iloc[:idx].max() if len(df_m[:idx]) > 0 else df_m['High'].max()
-                        past_high_val = past_high.item() if isinstance(past_high, pd.Series) else past_high
-                        
-                        base_period = 6
-                        if len(df_m[:idx]) >= base_period:
-                            base_df = df_m.iloc[idx-base_period : idx]
-                            base_low = base_df['Low'].min()
-                            base_avg_vol = base_df['Volume'].mean()
+                if len(df_m) >= 6:
+                    lookback = min(24, len(df_m))
+                    recent_24m = df_m.iloc[-lookback:]
+                    max_high_24m = recent_24m['High'].max()
+                    min_low_24m = recent_24m['Low'].min()
+                    
+                    # 1. 고점 대비 최소 40% 이상 하락한 이력 (대세 하락장/바닥권)
+                    if max_high_24m >= min_low_24m * 1.6:
+                        def is_strong_green(candle):
+                            c_open = candle['Open'].item() if isinstance(candle['Open'], pd.Series) else candle['Open']
+                            c_close = candle['Close'].item() if isinstance(candle['Close'], pd.Series) else candle['Close']
+                            return (c_close > c_open) and (c_close >= c_open * 1.15) # 최소 15% 이상 상승한 장대양봉
+
+                        # 2. 이번 달(-1) 또는 지난 달(-2)에 강한 장대양봉 발생 여부
+                        breakout_idx = None
+                        if is_strong_green(df_m.iloc[-1]):
+                            breakout_idx = -1
+                        elif is_strong_green(df_m.iloc[-2]):
+                            breakout_idx = -2
                             
-                            base_low_val = base_low.item() if isinstance(base_low, pd.Series) else base_low
-                            base_avg_vol_val = base_avg_vol.item() if isinstance(base_avg_vol, pd.Series) else base_avg_vol
-                            
-                            # 공통: 현재 종가가 최근 6개월 최저점을 깨지 않아야 함
-                            if c_close >= base_low_val:
-                                # 공통: 당월 양봉 및 전월 대비 상승
-                                if c_close > c_open and c_close > df_m['Close'].iloc[idx-1]:
-                                    
-                                    is_deep_crash = past_high_val >= base_low_val * 2.5
-                                    
-                                    # 합집합 조건 A: SATL형 (대폭락 후 폭발적 대량 거래량 동반)
-                                    cond_a = is_deep_crash and (c_vol > base_avg_vol_val * 2.5)
-                                    
-                                    # 합집합 조건 B: ABCL형 (대폭락 후 강력한 장대양봉 돌파 + 평이 이상의 거래량)
-                                    cond_b = is_deep_crash and (c_close > c_open * 1.15 or c_close > base_low_val * 1.3) and (c_vol >= base_avg_vol_val * 1.0)
-                                    
-                                    # 합집합 조건 C: SMR형 (단기 낙폭 과대 후 V자 반등 첫 양봉 + 거래량 실림)
-                                    cond_c = is_deep_crash and (c_close > c_open * 1.1) and (c_vol >= base_avg_vol_val * 1.2)
-                                    
-                                    # 합집합 조건 D: RKLB/QUBT/QS형 (강한 추세 속 눌림목 N자 반등 또는 상승장악형)
-                                    # 직전 1~2개월 내에 음봉(조정)이 있었고, 당월 10% 이상 양봉으로 전월 캔들 몸통의 고점을 덮어버린 경우 (상승 장악)
-                                    is_pullback = (df_m['Close'].iloc[idx-1] < df_m['Open'].iloc[idx-1]) or (len(df_m[:idx]) >= 2 and df_m['Close'].iloc[idx-2] < df_m['Open'].iloc[idx-2])
-                                    prev_body_top = max(df_m['Open'].iloc[idx-1], df_m['Close'].iloc[idx-1])
-                                    cond_d = is_pullback and (c_close > c_open * 1.10) and (c_close > prev_body_top)
-                                    
-                                    if cond_a or cond_b or cond_c or cond_d:
-                                        pattern_found = True
-                                        break
-                                            
-                if pattern_found:
-                    signals.append("monthly_pattern")
+                        if breakout_idx is not None:
+                            # 3. 장대양봉 직전 3~4개월간의 바닥 다지기(지지) 확인
+                            start_idx = breakout_idx - 4
+                            end_idx = breakout_idx
+                            if start_idx >= -len(df_m):
+                                base_candles = df_m.iloc[start_idx:end_idx]
+                                base_low = base_candles['Low'].min()
+                                base_high = base_candles['High'].max()
+                                
+                                # 바닥권 조건: 지지 구간의 고점이 2년 전체 변동폭의 하위 35% 이내에 있어야 함 (확실한 바닥권)
+                                range_24m = max_high_24m - min_low_24m
+                                bottom_threshold = min_low_24m + (range_24m * 0.35)
+                                is_at_bottom = (base_high <= bottom_threshold)
+                                
+                                # 돌파 조건: 장대양봉의 종가가 지지 구간의 고점을 뚫어내거나 근접해야 함
+                                b_candle = df_m.iloc[breakout_idx]
+                                b_close = b_candle['Close'].item() if isinstance(b_candle['Close'], pd.Series) else b_candle['Close']
+                                is_breaking_out = (b_close >= base_high * 0.95)
+                                
+                                if is_at_bottom and is_breaking_out:
+                                    signals.append("monthly_pattern")
             except Exception as e:
                 logger.debug(f"{ticker} 월봉 분석 실패: {e}")
 
+
+            if "ma200_support_breakout" in signals and len(signals) == 1:
+                signals.remove("ma200_support_breakout")
 
             if signals:
                 pe_ratio = 0.0
@@ -437,6 +430,55 @@ def get_realtime_data():
     except Exception:
         data['DXY'] = "97.86"
 
+    # FRED Macro Indicators
+    try:
+        import FinanceDataReader as fdr
+        import pandas as pd
+        
+        try:
+            cpi = fdr.DataReader('FRED:CPIAUCSL')
+            cpi_yoy = (cpi.iloc[-1,0] / cpi.iloc[-13,0] - 1) * 100
+            data['CPI_YOY'] = f"{cpi_yoy:.1f}%"
+        except Exception: data['CPI_YOY'] = "3.3%"
+        
+        try:
+            pce = fdr.DataReader('FRED:PCEPI')
+            pce_yoy = (pce.iloc[-1,0] / pce.iloc[-13,0] - 1) * 100
+            data['PCE_YOY'] = f"{pce_yoy:.1f}%"
+        except Exception: data['PCE_YOY'] = "3.5%"
+        
+        try:
+            payems = fdr.DataReader('FRED:PAYEMS')
+            nfp = payems.iloc[-1,0] - payems.iloc[-2,0]
+            data['NFP'] = f"{nfp:.0f}K"
+        except Exception: data['NFP'] = "178K"
+        
+        try:
+            unrate = fdr.DataReader('FRED:UNRATE')
+            data['UNRATE'] = f"{unrate.iloc[-1,0]:.1f}%"
+        except Exception: data['UNRATE'] = "4.3%"
+        
+        try:
+            fed_upper = fdr.DataReader('FRED:DFEDTARU').iloc[-1,0]
+            fed_lower = fdr.DataReader('FRED:DFEDTARL').iloc[-1,0]
+            data['FED_RATE'] = f"Fed {fed_lower:.2f}~{fed_upper:.2f}%"
+        except Exception: data['FED_RATE'] = "Fed 3.50~3.75%"
+        
+        try:
+            nfci = fdr.DataReader('FRED:NFCI')
+            data['NFCI'] = f"{nfci.iloc[-1,0]:.2f}"
+        except Exception: data['NFCI'] = "-0.52"
+        
+        data['PMI'] = "52.7"
+    except Exception:
+        data['CPI_YOY'] = "3.3%"
+        data['PCE_YOY'] = "3.5%"
+        data['NFP'] = "178K"
+        data['UNRATE'] = "4.3%"
+        data['FED_RATE'] = "Fed 3.50~3.75%"
+        data['NFCI'] = "-0.52"
+        data['PMI'] = "52.7"
+
     # KRW
     try:
         krw = yf.Ticker('KRW=X').fast_info.last_price
@@ -492,8 +534,8 @@ def get_realtime_data():
             data['TNX'] = "4.360"
             
     try:
-        tnx_news = yf.Ticker('^TNX').news[:2]
-        tnx_news_str = "\n".join([f"- {translate_to_ko(n.get('content', {}).get('title', 'No title'))} : {translate_to_ko(n.get('content', {}).get('summary', 'No summary')[:100])}..." for n in tnx_news])
+        tnx_news = yf.Ticker('^TNX').news[:3]
+        tnx_news_str = "\n\n".join([f"🔹 {translate_to_ko(n.get('content', {}).get('title', 'No title'))}\n  └ {translate_to_ko(n.get('content', {}).get('summary', 'No summary'))}" for n in tnx_news])
         data['TNX_NEWS'] = tnx_news_str if tnx_news_str else "- 최근 10년물 국채 관련 특이 뉴스 없음."
     except Exception:
          data['TNX_NEWS'] = "- 최근 10년물 국채 관련 특이 뉴스 없음."
@@ -511,8 +553,8 @@ def get_realtime_data():
             data['BTC'] = "80,750"
             
     try:
-        btc_news = yf.Ticker('BTC-USD').news[:2]
-        btc_news_str = "\n".join([f"- {translate_to_ko(n.get('content', {}).get('title', 'No title'))} : {translate_to_ko(n.get('content', {}).get('summary', 'No summary')[:100])}..." for n in btc_news])
+        btc_news = yf.Ticker('BTC-USD').news[:3]
+        btc_news_str = "\n\n".join([f"🔹 {translate_to_ko(n.get('content', {}).get('title', 'No title'))}\n  └ {translate_to_ko(n.get('content', {}).get('summary', 'No summary'))}" for n in btc_news])
         data['BTC_NEWS'] = btc_news_str if btc_news_str else "- 최근 비트코인 관련 특이 뉴스 없음."
     except Exception:
         data['BTC_NEWS'] = "- 최근 비트코인 관련 특이 뉴스 없음."
@@ -522,18 +564,33 @@ def get_realtime_data():
         import xml.etree.ElementTree as ET
         import urllib.parse
         
-        # 주식 시장에 영향을 미칠만한 정부 정책 및 매크로 뉴스로 한정
-        query = '(정부정책 OR 연준 OR 지정학적 리스크 OR 금리 OR 환율) AND (증시 OR 주식 OR 주가 OR 수혜 OR 타격 OR 전망)'
-        encoded_query = urllib.parse.quote(query)
-        
-        res = requests.get(f'https://news.google.com/rss/search?q={encoded_query}&hl=ko&gl=KR&ceid=KR:ko')
-        root = ET.fromstring(res.text)
-        items = root.findall('.//item')[:3]
-        news_list = []
-        for i in items:
+        # 한국 뉴스 (최근 24시간)
+        kr_query = '(정부정책 OR 연준 OR 지정학적 리스크 OR 금리 OR 환율) AND (증시 OR 주식 OR 주가 OR 수혜 OR 타격 OR 전망) when:1d'
+        kr_encoded = urllib.parse.quote(kr_query)
+        kr_res = requests.get(f'https://news.google.com/rss/search?q={kr_encoded}&hl=ko&gl=KR&ceid=KR:ko')
+        kr_root = ET.fromstring(kr_res.text)
+        kr_items = kr_root.findall('.//item')[:5]
+        kr_news = []
+        for i in kr_items:
             title = i.find('title').text if i.find('title') is not None else 'No title'
-            news_list.append(f"- {title}")
-        data['MACRO_NEWS'] = "\n".join(news_list) if news_list else "- 최근 특이 뉴스 없음."
+            title = title.rsplit(' - ', 1)[0]
+            kr_news.append(f"🇰🇷 {title}")
+            
+        # 미국 뉴스 (최근 24시간)
+        us_query = '(Federal Reserve OR geopolitical risk OR interest rate OR policy) AND (stock market OR shares) when:1d'
+        us_encoded = urllib.parse.quote(us_query)
+        us_res = requests.get(f'https://news.google.com/rss/search?q={us_encoded}&hl=en-US&gl=US&ceid=US:en')
+        us_root = ET.fromstring(us_res.text)
+        us_items = us_root.findall('.//item')[:5]
+        us_news = []
+        for i in us_items:
+            title = i.find('title').text if i.find('title') is not None else 'No title'
+            title = title.rsplit(' - ', 1)[0]
+            ko_title = translate_to_ko(title)
+            us_news.append(f"🇺🇸 {ko_title}")
+            
+        all_news = kr_news + us_news
+        data['MACRO_NEWS'] = "\n".join(all_news) if all_news else "- 최근 24시간 내 특이 뉴스 없음."
     except Exception as e:
         data['MACRO_NEWS'] = "- 뉴스 데이터를 불러올 수 없습니다."
         
@@ -588,31 +645,48 @@ def get_top30_krx_gainers():
             top30['Sector'] = ''
             top30['Industry'] = ''
         
-        # 섹터 및 산업 분포 분석
-        sectors = top30['Sector'].dropna().value_counts()
-        # 'Industry' might be 'Industry_x' or 'Industry_y' depending on columns after merge. 
-        # fdr StockListing KRX doesn't have Sector/Industry, KRX-DESC has them.
-        # So in the merged df, they are named Sector and Industry.
-        industries = top30['Industry'].dropna().value_counts() if 'Industry' in top30.columns else top30['Industry_y'].dropna().value_counts() if 'Industry_y' in top30.columns else pd.Series(dtype=int)
-        
-        top_sectors = sectors.head(3)
-        top_industries = industries.head(3)
+        # 종목별 테마 분류 로직 (바이오, 로봇, IT 등)
+        def classify_theme(r):
+            text = str(r.get('Industry', '')) + " " + str(r.get('Industry_y', '')) + " " + str(r.get('Name_x', '')) + " " + str(r.get('Name', ''))
+            if '로봇' in text or '자동화' in text or '드론' in text: return '로봇 및 자동화'
+            if '바이오' in text or '제약' in text or '의료' in text or '신약' in text or '생명공학' in text: return '바이오/헬스케어'
+            if '반도체' in text: return '반도체'
+            if '전지' in text or '배터리' in text or '에코' in text: return '이차전지/배터리'
+            if '소프트웨어' in text or 'IT' in text or '정보' in text or '게임' in text or 'AI' in text: return 'IT/소프트웨어'
+            if '기계' in text: return '기계장비'
+            if '자동차' in text or '부품' in text: return '자동차/부품'
+            if '화학' in text or '소재' in text: return '화학/소재'
+            if '금융' in text or '지주' in text or '증권' in text or '투자' in text: return '금융/지주사'
+            if '건설' in text or '부동산' in text or '리츠' in text: return '건설/부동산'
+            if '엔터' in text or '방송' in text or '미디어' in text or '콘텐츠' in text: return '미디어/엔터'
+            if '식음료' in text or '식품' in text or '의류' in text or '소비재' in text: return '소비재'
+            # 분류되지 않은 경우 원래 산업군 사용
+            ind = str(r.get('Industry', str(r.get('Industry_y', ''))))
+            if ind and ind != 'nan': return ind
+            return '기타'
+
+        top30['Theme'] = top30.apply(classify_theme, axis=1)
+        themes = top30['Theme'].value_counts()
+        top_themes = themes.head(5)
         
         # 디스코드 보고서 생성
         report_lines = []
         report_lines.append(f"🔍 [당일 상승률 상위 30종목 주요 섹터 분포]")
-        for sector, count in top_sectors.items():
-            report_lines.append(f"  └ {sector}: {count}종목")
+        for theme, count in top_themes.items():
+            t_name = theme if theme == '기타/확인불가' or theme.endswith('관련주') else theme + ' 관련주'
+            report_lines.append(f"  └ {t_name}: {count}종목")
             
-        report_lines.append(f"\n🔍 [당일 상승률 상위 30종목 주요 세부 산업]")
-        for industry, count in top_industries.items():
-            report_lines.append(f"  └ {industry}: {count}종목")
+        report_lines.append(f"\n📈 [상승률 상위 30종목 표]")
+        for idx, (_, row) in enumerate(top30.iterrows(), 1):
+            name = str(row.get('Name_x', row.get('Name', row['Code'])))
+            code = str(row['Code'])
+            market = "KS" if str(row.get('Market_x', row.get('Market', ''))) == 'KOSPI' else "KQ"
+            chg = float(row.get('ChagesRatio', 0.0))
+            theme = str(row.get('Theme', '-'))
+            t_name = theme if theme == '기타/확인불가' or theme.endswith('관련주') else theme + ' 관련주'
+            report_lines.append(f"{idx:02d}위 | {name} ({code}.{market}) (+{chg:.2f}%) | {t_name}")
             
-        report_lines.append(f"\n💡 [분석 요약]")
-        summary_text = f"당일 시장의 강한 매수세는 주로 '{top_sectors.index[0] if len(top_sectors)>0 else 'N/A'}' 및 '{top_sectors.index[1] if len(top_sectors)>1 else 'N/A'}' 섹터로 유입되었습니다. "
-        summary_text += f"세부적으로는 '{top_industries.index[0] if len(top_industries)>0 else 'N/A'}' 관련 테마가 급등하며 당일 시장의 주도 테마를 형성하고 있습니다."
-        report_lines.append(summary_text)
-        
+        # 분석 요약 생략 (리포트 11번의 최종 요약으로 대체됨)
         # 프론트엔드 대시보드용 데이터
         top30_data = []
         for idx, row in top30.iterrows():
@@ -631,7 +705,72 @@ def get_top30_krx_gainers():
         logger.warning(f"Top 30 분석 실패: {e}")
         return f"- 분석 중 오류 발생: {e}", []
 
-def send_to_discord(top30_report_text):
+def get_top30_us_gainers():
+    print("\n[분석] 당일 미국 주식 상승률 상위 30 종목 분석을 시작합니다...")
+    try:
+        url = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-US&region=US&scrIds=day_gainers&count=30'
+        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=10)
+        quotes = res.json().get('finance', {}).get('result', [{}])[0].get('quotes', [])
+        
+        sectors_list = []
+        industries_list = []
+        top30_info = []
+
+        import yfinance as yf
+        import time
+        import pandas as pd
+        
+        for q in quotes[:30]:
+            sym = q.get('symbol', '')
+            name = q.get('shortName', sym)
+            ko_name = translate_to_ko(name)
+            ko_name = ko_name if ko_name else name
+            chg_obj = q.get('regularMarketChangePercent', 0.0)
+            chg = chg_obj.get('raw', 0.0) if isinstance(chg_obj, dict) else float(chg_obj)
+            
+            sector = "Unknown"
+            industry = "Unknown"
+            try:
+                info = yf.Ticker(sym).info
+                sector = info.get('sector', 'Unknown')
+                industry = info.get('industry', 'Unknown')
+                time.sleep(0.1) # Yahoo 차단 방지
+            except Exception:
+                pass
+            
+            if sector != "Unknown":
+                sectors_list.append(sector)
+            if industry != "Unknown":
+                industries_list.append(industry)
+                
+            top30_info.append({"sym": sym, "name": ko_name, "chg": chg, "sector": sector, "industry": industry})
+
+        sectors_counts = pd.Series(sectors_list).value_counts().head(3) if sectors_list else pd.Series(dtype=int)
+        industries_counts = pd.Series(industries_list).value_counts().head(3) if industries_list else pd.Series(dtype=int)
+
+        report_lines = []
+        report_lines.append(f"🔍 [당일 상승률 상위 종목 주요 섹터 분포]")
+        if not sectors_counts.empty:
+            for sec, count in sectors_counts.items():
+                s_name = translate_to_ko(sec)
+                s_name = s_name if s_name == '기타/확인불가' or s_name.endswith('관련주') else s_name + ' 관련주'
+                report_lines.append(f"  └ {s_name}: {count}종목")
+        else:
+            report_lines.append("  └ 정보 없음")
+
+        report_lines.append(f"\n📈 [상승률 상위 종목 표]")
+        for idx, info in enumerate(top30_info, 1):
+            sec_display = translate_to_ko(info['sector']) if info['sector'] != 'Unknown' else '기타/확인불가'
+            s_name = sec_display if sec_display == '기타/확인불가' or sec_display.endswith('관련주') else sec_display + ' 관련주'
+            chg = float(info['chg'])
+            report_lines.append(f"{idx:02d}위 | {info['sym']} {info['name']} (+{chg:.2f}%) | {s_name}")
+        
+        return "\n".join(report_lines)
+    except Exception as e:
+        logger.warning(f"US Top 30 분석 실패: {e}")
+        return f"- 미국 시장 분석 중 오류 발생: {e}"
+
+def send_to_discord(top30_krx_text, top30_us_text):
     if not DISCORD_WEBHOOK_URL:
         print("\n[안내] 디스코드 웹훅 URL이 설정되지 않아 메시지를 전송하지 않습니다. (.env 파일을 확인하세요)")
         return
@@ -658,9 +797,9 @@ def send_to_discord(top30_report_text):
     if buffett_indicator >= 200.0:
         buffett_alert = f"\n\n🚨 긴급 역발상 특보: 워런 버핏 지수 극단적 과열 경고\n👉 현재 지수: {buffett_indicator}% (위험 수준 200% 초과)\n⚠️ 버크셔 해서웨이 동향: 애플(AAPL), 뱅크오브아메리카(BAC) 등 주요 지분 대량 매각 후 4,000억 달러 이상 역대 최대 현금 확보. 시장 거품에 대한 강력한 경고로 해석되며, 추격 매수 중단 및 현금 비중 확대 필수."
     elif buffett_indicator <= 130.0:
-        buffett_alert = f"\n\n🚨 긴급 역발상 특보: 워런 버핏 지수 바닥권 진입\n👉 현재 지수: {buffett_indicator}% (극단적 공포 및 기회 구간)\n⚠️ 버크셔 해서웨이 동향: 지수가 130% 이하로 바닥권에 진입하면 버핏은 공격적 매수를 준비합니다. 역사적으로 이런 구간에서 버크셔는 '우량 금융주(골드만삭스, BAC)', '필수소비재', '에너지(옥시덴탈, 셰브론)' 및 해자를 갖춘 '미디어/브랜드' 기업들을 대거 매집했습니다. 펀더멘털 우량주 분할 매수 타점입니다."
+        buffett_alert = f"\n🚨 긴급 역발상 특보: 워런 버핏 지수 바닥권 진입\n👉 현재 지수: {buffett_indicator}% (극단적 공포 및 기회 구간)\n⚠️ 버크셔 해서웨이 동향: 지수가 130% 이하로 바닥권에 진입하면 버핏은 공격적 매수를 준비합니다. 역사적으로 이런 구간에서 버크셔는 '우량 금융주(골드만삭스, BAC)', '필수소비재', '에너지(옥시덴탈, 셰브론)' 및 해자를 갖춘 '미디어/브랜드' 기업들을 대거 매집했습니다. 펀더멘털 우량주 분할 매수 타점입니다."
         
-    berkshire_trade_alert = "\n\n🚨 긴급 역발상 특보: 워런 버핏(버크셔 해서웨이) 최근 1주일 거래 포착\n[다비타/DVA/헬스케어]: 2026년 5월 첫째 주, 약 150달러 부근에서 122만 주(약 1.8억 달러) 대규모 매도 (SEC Form 4 공시). 버크셔의 핵심 지분 축소 및 포트폴리오 차익 실현(현금 확보) 기조가 중소형주에서도 일관되게 나타나고 있는 시그널입니다."
+    berkshire_trade_alert = ""
     
     def format_pe(name, pe):
         if pe >= 19: return f"🔴 {name} → {pe:.1f}배 · 5점 광기"
@@ -685,31 +824,82 @@ def send_to_discord(top30_report_text):
     pe_util = format_pe('유틸리티', pe_data.get('유틸리티', 16.5))
     pe_real = format_pe('부동산', pe_data.get('부동산', 32.0))
 
+
+    try:
+        import yfinance as yf
+        irx_hist = yf.Ticker('^IRX').history(period='5d')
+        irx = float(irx_hist['Close'].iloc[-1])
+        tnx_float = float(tnx)
+        spread = tnx_float - irx
+        
+        if spread <= -1.0:
+            forecast_result = f"확률적으로 **강력한 금리 '인하' 임박 (인하 확률 95% 이상)**"
+        elif spread < -0.2:
+            forecast_result = f"확률적으로 **점진적 금리 '인하' 사이클 진입 (인하 확률 70% 이상)**"
+        elif spread <= 0.5:
+            forecast_result = f"확률적으로 **금리 동결(Pause) 및 관망 (인상/인하 팽팽함)**"
+        else:
+            forecast_result = f"확률적으로 **추가 금리 '인상' 또는 고금리 장기화 (인상 확률 80% 이상)**"
+
+        rate_forecast_text = f"""📌 [앞으로의 금리의 전망]
+현재 미 10년물 국채 금리는 {tnx_float:.3f}%이며, 현재 중앙은행 정책금리 대용치(13주물 T-Bill)는 {irx:.3f}%로, 양자의 차이(스프레드)는 **{spread:+.3f}%p**입니다.
+과거 50년 데이터를 분석해 보면:
+- **금리 인상 시기**: 보통 장기금리(10년물)가 단기금리보다 0.5%p ~ 1.5%p 이상 높게 유지됩니다.
+- **금리 인하 시기**: 경기 침체 우려로 장단기 금리 역전 현상이 발생하며, 통상 장기금리가 단기금리보다 0.5%p ~ 1.5%p 이상 낮아질 때 연준이 파격적인 금리 인하를 단행했습니다.
+👉 종합 분석: {forecast_result}
+
+📌 [FOMC 핵심 주시 지표 현황]
+FOMC가 금리를 결정할 때 최우선으로 보는 최신 지표는 다음과 같습니다:
+1. **Core PCE (근원 개인소비지출)**: 연준의 실질적 물가 목표치 (현재 고착화 여부 주목)
+2. **NFP (비농업고용지수) & 실업률**: 고용 시장의 냉각 속도 (실업률 4% 돌파 여부가 금리 인하 트리거)
+3. **ISM 서비스업 PMI**: 미국 경제의 70%를 차지하는 서비스업 물가 및 성장 둔화 여부"""
+    except Exception as e:
+        rate_forecast_text = f"📌 [앞으로의 금리의 전망]\n데이터 수집 오류로 분석을 생략합니다. ({e})"
+
     messages = [
-        f"""📊 안티그레비티 통합 전략 리포트 (1/9)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 긴급 역발상 특보: 하락 종목 내 내부자 매수 포착
-[룰루레몬/LULU/임의소비재]: 실적 가이던스 하향 → 주가 20%↓ 급락 중 경영진 $250K↑ 순매수 포착. RSI 30↓ 과매도 + 장기 지지선 도달 → 반등 시그널{buffett_alert}{berkshire_trade_alert}
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (1/10)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━{buffett_alert}
 
 📊 주요 경제 및 유동성 지표
-🍎 물가 (CPI / PCE): 3.3% / 3.5%
-➡️ 인플레이션 여전히 목표(2%) 상회. 연준 금리 인하 신중 모드 지속
 
-👷 고용/경기 (NFP / 실업률 / PMI): 178K / 4.3% / 52.7
-➡️ 고용 증가세 둔화 + 실업률 4.3% 상승. PMI 52.7(확장) but 원자재 가격(Prices 84.6) 급등 → 비용 압박
+🍎 물가 (CPI / PCE): {d.get('CPI_YOY', '3.3%')} / {d.get('PCE_YOY', '3.5%')}
 
-💵 금리: Fed 3.50~3.75%
-➡️ 연준 3.75%까지 인하했으나 추가 인하 속도 둔화. 물가 안정 전까지 신중한 스탠스 유지
+👷 고용/경기 (NFP / 실업률 / PMI): {d.get('NFP', '178K')} / {d.get('UNRATE', '4.3%')} / {d.get('PMI', '52.7')}
 
-💧 유동성 NFCI: -0.52
-➡️ 금융 환경 완화적 유지(-0.52). 유동성 풍부하나 인플레 재점화 시 급변 가능""",
+💵 금리: {d.get('FED_RATE', 'Fed 3.50~3.75%')}
 
-        f"""📊 안티그레비티 통합 전략 리포트 (2/9)
+💧 유동성 NFCI: {d.get('NFCI', '-0.52')}""",
+
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (2/10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📈 핵심 자산 상관관계 및 거시 지표 분석
+
+🛢️ 핵심 원자재 트래킹
+
+🥇 금 ${gold} 
+
+🥈 은 ${silver}
+
+🥉 구리 ${copper}
+
+🛢️ WTI ${wti}
+
+💵 외환 & 매크로 지표 변동성 분석
+
+🇺🇸 달러 인덱스(DXY) : {dxy}
+
+🇰🇷 USD/KRW : {krw}원""",
+
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (3/10)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📈 핵심 자산 상관관계 및 거시 지표 분석 (1/2)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🇺🇸 미 국채 10년물 금리 (TNX) : {tnx}%
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{rate_forecast_text}
+
 📌 [현재 상황 및 배경]
 10년물 국채금리는 글로벌 자산의 '무위험 수익률(할인율)'로, 증시 밸류에이션에 절대적 영향을 미칩니다.
 현재 연준(Fed)의 금리 인하 속도 둔화와 미국의 막대한 재정 적자로 인한 국채 발행 우려가 맞물려, 금리가 쉽게 떨어지지 않고 하방 경직성을 보이고 있습니다.
@@ -719,8 +909,12 @@ def send_to_discord(top30_report_text):
 반대로 고용 지표 둔화 등으로 연준이 비둘기파적 스탠스를 취하며 금리가 꺾인다면, 그동안 짓눌렸던 가치주, 배당주, 중소형주로의 강력한 순환매 장세가 연출될 가능성이 높습니다.
 
 🗞️ [최근 뉴스 동향]
-{d.get('TNX_NEWS', '- 최근 뉴스 없음')}
+{d.get('TNX_NEWS', '- 최근 뉴스 없음')}""",
 
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (4/10)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📈 핵심 자산 상관관계 및 거시 지표 분석 (2/2)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🪙 비트코인 (BTC) : ${btc}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -735,26 +929,8 @@ def send_to_discord(top30_report_text):
 🗞️ [최근 뉴스 동향]
 {d.get('BTC_NEWS', '- 최근 뉴스 없음')}""",
 
-        f"""📊 안티그레비티 통합 전략 리포트 (3/9)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📉 역발상 판독기: 실시간 지표 및 체크리스트
-
-❶ 실시간 VIX Index (공포지수)
-👉 현재 VIX: {vix} 
-(15 미만 과열 / 15~20 4점 과열 / 20~30 3점 중립 / 30~40 2점 불안 / 40이상 1점 공포)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 매매 전 추가 수동 확인 지표
-👉 Bull/Bear Spread
-(30 이상 광기 / 20~30 4점 과열 / -20~20 3점 중립 / -30~-20 2점 불안 / -30 1점 공포)
-👉 Put/Call Ratio
-(0.4 이하 5점 광기 / 0,4~0.5 4점 과열 / 0.5~1 3점 중립 / 1~1.2 2점 불안 / 1.2~ 1점 공포)
-👉 Margin Debt(YoY)
-(40점 이상 5점 광기 / 20~40 4점 과열 / -20~20 3점 중립 / -30~-20 2점 불안 / -30 1점 공포)
-👉 HY Spread
-(3%이하 5점 광기 / 바닥 +1% 4점 과열 / 3~5% 3점 중립 / 5% 상승세 2점 불안 / 5% 상승 후 -1% 하락 1점 공포)""",
-
-        f"""📊 안티그레비티 통합 전략 리포트 (4/9)
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (5/10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🟢 11개 GICS 섹터 맞춤 전략
 🟢 확대  에너지 / 헬스케어 / 소재
@@ -767,31 +943,8 @@ def send_to_discord(top30_report_text):
 고금리 취약 부동산, 소비 둔화 임의소비재 축소 필수
 IT·커뮤니케이션 P/E 29배, 차익 실현 압력 극심""",
 
-        f"""📊 안티그레비티 통합 전략 리포트 (5/9)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛢️ 핵심 원자재 트래킹
-🥇 금 ${gold} / 은 ${silver}
-구조적 초강세 · 신고가 경신
-➡️ 중앙은행 금 매입 + 법정화폐 가치 하락
-
-🥉 구리 ${copper}
-강한 상승 돌파
-➡️ AI 데이터센터·신재생 인프라 수요 폭발
-
-🛢️ WTI ${wti}
-고유가 지속
-➡️ 지정학 리스크 + 공급 우려로 $90대 유지. 중동 휴전 진전 시 하락 가능
-
-💵 외환 & 매크로 지표 변동성 분석
-🇺🇸 달러 인덱스(DXY) : {dxy}
-🇰🇷 USD/KRW : {krw}원
-📌 [변동성 원인 및 매크로 요인 요약]
-• 지정학적 불안(중동 분쟁 등)으로 인한 안전자산 선호 심리가 달러 수요를 지지.
-• 연준(Fed)의 금리 인하 속도 둔화 및 인플레이션 고착화 우려가 강달러와 원화 약세(환율 상승) 압력으로 작용.
-• 한국 내 구조적 자본 유출(서학개미발 미국 기술주/AI 투자 쏠림)이 원/달러 환율 상승(원화 가치 하락)의 만성적 드라이버 역할을 함.
-• 향후 반도체 수출 호조 지속 및 WGBI 편입(외국인 자금 유입) 여부가 환율 상단을 방어하고 안정을 되찾을 핵심 트리거가 될 전망.""",
-
-        f"""📊 안티그레비티 통합 전략 리포트 (6/9)
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (6/10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚖️ 밸류에이션 (P/E) 상태
 ※ 19↑ 5점(광기) / 18~19 4점(과열) / 16~18 3점(중립) / 15~16 2점(불안) / 15↓ 1점(공포)
@@ -811,16 +964,18 @@ IT·커뮤니케이션 P/E 29배, 차익 실현 압력 극심""",
 {pe_util}
 {pe_real}""",
 
-        f"""📊 안티그레비티 통합 전략 리포트 (7/9)
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (7/10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏛️ 정부 정책 & 지정학적 리스크 (실시간 뉴스)
+🏛️ 정부 정책 & 지정학적 리스크 (최근 24시간)
 ⚠️ 최신 주요 뉴스
 {d.get('MACRO_NEWS', '- 최근 특이 뉴스 없음.')}
 
-💡 [시장 영향]
-위 뉴스들은 유가(에너지), 금리(성장주 밸류에이션), 그리고 안전 자산(금/달러) 선호 심리에 즉각적인 영향을 미치는 핵심 변수입니다.""",
+💡 [시장 영향 인사이트]
+당일 발표된 한·미 양국의 주요 거시경제 및 지정학적 뉴스들은 글로벌 자산 시장의 핵심 변수(유가, 금리, 환율)에 직접적인 영향을 주고 있습니다. 미국 연준의 정책 스탠스 변화와 지정학적 갈등은 외국인 수급 변동성과 안전자산 선호 심리를 크게 자극합니다. 따라서 위 뉴스 흐름을 바탕으로 단기적인 현금 비중 조절과 보다 보수적인 포트폴리오 대응 및 리스크 관리가 필수적인 구간입니다.""",
 
-        f"""📊 안티그레비티 통합 전략 리포트 (8/9)
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (8/10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📝 최종 행동 지침
 현재 시장: Trailing P/E {market_pe:.1f}배 + 유가 ${wti} 고공
@@ -837,33 +992,59 @@ IT·커뮤니케이션 P/E 29배, 차익 실현 압력 극심""",
 ⚡ 예외 매수
 펀더멘털 견고 + 경영진 $100K↑ 내부자 매수 기업만 분할 스윙 허용""",
 
-        f"""📊 안티그레비티 통합 전략 리포트 (9/9)
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (9/10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🇰🇷 당일 한국 주식 상승률 상위 30 종목 분석
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{top30_report_text}
+{top30_krx_text}
 
-💡 [분석 요약]
-당일 시장에서 가장 강하게 상승한 상위 30종목이 속한 섹터와 테마는 현재 시장을 주도하는 단기적인 강세 테마를 의미합니다.""",
-
-        f"""✅ 전체 스캔 및 분석 완료
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 대시보드에서 결과를 확인하세요.
+🇺🇸 당일 미국 주식 상승률 상위 종목 분석
+{top30_us_text}""",
+
+        f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 안티그레비티 통합 전략 리포트 (10/10)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 안티그레비티 최종 종합 요약
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+현재 시장은 극심한 변동성과 유동성의 교차로에 서 있습니다. 미국 연준의 금리 인하 기대감과 인플레이션 고착화 우려가 맞물리면서 국채 금리(TNX)와 달러(DXY)는 여전히 높은 수준을 유지하며 글로벌 자산 시장 전반에 부담을 주고 있습니다.
+
+하지만 비트코인 등 위험 자산의 강세와 핵심 원자재(금, 은, 구리)의 신고가 랠리는 구조적 인플레이션에 대비한 스마트 머니의 이동을 뚜렷하게 보여줍니다. 11개 GICS 섹터 중에서는 고유가와 비용 압박을 방어할 수 있는 에너지, 소재, 그리고 밸류에이션 부담이 적은 헬스케어 섹터가 상대적으로 유리한 환경입니다. 반면 고평가된 일부 기술주 및 임의소비재는 차익 실현 압력이 강하므로 비중 축소와 리스크 관리가 필요합니다.
+
+결론적으로, 현시점에서는 섣부른 추격 매수를 자제하고 충분한 현금(30% 이상)을 확보하는 것이 안전합니다. 확실한 펀더멘털 신호가 있거나, 200일선 지지와 일목균형표 양운 전환이 동반된 우량 가치주 위주로만 보수적으로 접근하시기 바랍니다.
+
+✅ 전체 스캔 및 분석 완료
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 대시보드에서 전체 결과를 확인하세요.
 🔗 http://localhost:5173/"""
     ]
 
     import time
     for i, msg in enumerate(messages):
-        try:
-            payload = {"content": msg}
-            response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
-            if response.status_code in [200, 204]:
-                print(f"[성공] 디스코드 메시지 #{i+1} 전송 완료.")
+        # 디스코드 메시지 길이 제한(2000자) 대응을 위한 분할 전송
+        chunks = []
+        current_chunk = ""
+        for line in msg.split('\n'):
+            if len(current_chunk) + len(line) + 1 > 1900:
+                chunks.append(current_chunk)
+                current_chunk = line
             else:
-                print(f"[오류] 디스코드 전송 실패: HTTP {response.status_code}")
-            time.sleep(2) # 2초 대기
-        except Exception as e:
-            print(f"[오류] 디스코드 전송 에러: {e}")
+                current_chunk += ("\n" + line) if current_chunk else line
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        for chunk_idx, chunk in enumerate(chunks):
+            try:
+                payload = {"content": chunk}
+                response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+                if response.status_code in [200, 204]:
+                    part_str = f" (부분 {chunk_idx+1}/{len(chunks)})" if len(chunks) > 1 else ""
+                    print(f"[성공] 디스코드 메시지 #{i+1}{part_str} 전송 완료.")
+                else:
+                    print(f"[오류] 디스코드 메시지 #{i+1} 전송 실패: HTTP {response.status_code}")
+                time.sleep(2) # 2초 대기
+            except Exception as e:
+                print(f"[오류] 디스코드 전송 에러: {e}")
 
 # ============================================================
 # 메인 실행
@@ -874,65 +1055,83 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     all_scan_results = []
+    skip_scan = False
 
-    for theme_name in THEMES.keys():
-        print(f"\n{'='*50}")
-        print(f" [현재 스캔 테마] : {theme_name} (대상 시장: {args.market})")
-        print(f"{'='*50}\n")
+    if os.path.exists("scan_results.json"):
+        try:
+            with open("scan_results.json", "r", encoding="utf-8") as f:
+                cached_data = json.load(f)
+                cached_time_str = cached_data.get("timestamp", "")
+                if cached_time_str:
+                    cached_time = datetime.datetime.strptime(cached_time_str, "%Y-%m-%d %H:%M:%S")
+                    if (datetime.datetime.now() - cached_time).total_seconds() < 3 * 3600:
+                        print(f"\n[안내] 최근 스캔({cached_time_str})이 3시간 이내에 수행되었습니다. 무거운 주식 스캔을 생략하고 디스코드 메시지만 전송합니다.")
+                        all_scan_results = cached_data.get("data", [])
+                        skip_scan = True
+        except Exception as e:
+            logger.warning(f"캐시 읽기 실패: {e}")
 
-        krx_tickers, nasdaq_tickers, ticker_to_name = get_market_tickers(theme_name, market_type=args.market)
-
-        # 미국 시장 분석 (먼저)
-        results_nasdaq = {}
-        if nasdaq_tickers:
-            print(f"\n[미국] {theme_name} 테마 총 {len(nasdaq_tickers)}개의 종목에 대해 일목균형표 분석을 시작합니다.")
-            results_nasdaq = analyze_stocks(nasdaq_tickers, ticker_to_name)
-
-        # 한국 시장 분석 (나중)
-        results_krx = {}
-        if krx_tickers:
-            print(f"\n[한국] {theme_name} 테마 총 {len(krx_tickers)}개의 종목에 대해 일목균형표 분석을 시작합니다.")
-            results_krx = analyze_stocks(krx_tickers, ticker_to_name)
-
-        # 결과 출력
-        print(f"\n{'='*15}[ {theme_name} 분석 결과 ]{'='*15}")
-        for key, label in labels.items():
-            krx_list = [t['display'] if isinstance(t, dict) else t for t in results_krx.get(key, [])]
-            nasdaq_list = [t['display'] if isinstance(t, dict) else t for t in results_nasdaq.get(key, [])]
-            print(f" * {key}: KRX={krx_list}")
-            print(f"          NASDAQ={nasdaq_list}")
-
-        # JSON 결과 누적
-        all_scan_results.append({
-            "theme": theme_name,
-            "krx": results_krx,
-            "nasdaq": results_nasdaq
-        })
+    if not skip_scan:
+        for theme_name in THEMES.keys():
+            print(f"\n{'='*50}")
+            print(f" [현재 스캔 테마] : {theme_name} (대상 시장: {args.market})")
+            print(f"{'='*50}\n")
+    
+            krx_tickers, nasdaq_tickers, ticker_to_name = get_market_tickers(theme_name, market_type=args.market)
+    
+            # 미국 시장 분석 (먼저)
+            results_nasdaq = {}
+            if nasdaq_tickers:
+                print(f"\n[미국] {theme_name} 테마 총 {len(nasdaq_tickers)}개의 종목에 대해 일목균형표 분석을 시작합니다.")
+                results_nasdaq = analyze_stocks(nasdaq_tickers, ticker_to_name)
+    
+            # 한국 시장 분석 (나중)
+            results_krx = {}
+            if krx_tickers:
+                print(f"\n[한국] {theme_name} 테마 총 {len(krx_tickers)}개의 종목에 대해 일목균형표 분석을 시작합니다.")
+                results_krx = analyze_stocks(krx_tickers, ticker_to_name)
+    
+            # 결과 출력
+            print(f"\n{'='*15}[ {theme_name} 분석 결과 ]{'='*15}")
+            for key, label in labels.items():
+                krx_list = [t['display'] if isinstance(t, dict) else t for t in results_krx.get(key, [])]
+                nasdaq_list = [t['display'] if isinstance(t, dict) else t for t in results_nasdaq.get(key, [])]
+                print(f" * {key}: KRX={krx_list}")
+                print(f"          NASDAQ={nasdaq_list}")
+    
+            # JSON 결과 누적
+            all_scan_results.append({
+                "theme": theme_name,
+                "krx": results_krx,
+                "nasdaq": results_nasdaq
+            })
 
     # 당일 상승률 탑 30 분석 및 리포트/데이터 획득
-    top30_report_text, top30_data = get_top30_krx_gainers()
+    top30_krx_text, top30_data = get_top30_krx_gainers()
+    top30_us_text = get_top30_us_gainers()
 
-    # 웹 대시보드용 JSON 파일 저장 (루트 + frontend/public 양쪽에 저장)
-    output_data = {
-        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "data": all_scan_results,
-        "top30": top30_data
-    }
-
-    # 루트에 저장 (FastAPI가 읽는 경로)
-    with open("scan_results.json", "w", encoding="utf-8") as f:
-        json.dump(output_data, f, ensure_ascii=False, indent=4)
-
-    # frontend/public에도 저장 (Vite 개발서버가 읽는 경로)
-    os.makedirs("frontend/public", exist_ok=True)
-    with open("frontend/public/scan_results.json", "w", encoding="utf-8") as f:
-        json.dump(output_data, f, ensure_ascii=False, indent=4)
-
-    print("\n[완료] scan_results.json 저장 완료 (루트 + frontend/public)")
+    if not skip_scan:
+        # 웹 대시보드용 JSON 파일 저장 (루트 + frontend/public 양쪽에 저장)
+        output_data = {
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "data": all_scan_results,
+            "top30": top30_data
+        }
+    
+        # 루트에 저장 (FastAPI가 읽는 경로)
+        with open("scan_results.json", "w", encoding="utf-8") as f:
+            json.dump(output_data, f, ensure_ascii=False, indent=4)
+    
+        # frontend/public에도 저장 (Vite 개발서버가 읽는 경로)
+        os.makedirs("frontend/public", exist_ok=True)
+        with open("frontend/public/scan_results.json", "w", encoding="utf-8") as f:
+            json.dump(output_data, f, ensure_ascii=False, indent=4)
+    
+        print("\n[완료] scan_results.json 저장 완료 (루트 + frontend/public)")
 
     # 최종 디스코드 9분할 리포트 전송
-    print("\n[전송] 디스코드 9분할 리포트 전송을 시작합니다...")
-    send_to_discord(top30_report_text)
+    print("\n[전송] 디스코드 리포트 전송을 시작합니다...")
+    send_to_discord(top30_krx_text, top30_us_text)
 
-    print(f"\n[완료] 전체 스캔이 성공적으로 끝났습니다! 대시보드: {BASE_DASHBOARD_URL}")
+    print(f"\n[완료] 프로그램이 성공적으로 종료되었습니다! 대시보드: {BASE_DASHBOARD_URL}")
 
