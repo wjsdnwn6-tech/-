@@ -373,53 +373,50 @@ def analyze_stocks(tickers, ticker_to_name):
                     df_m = df.resample('M').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
 
                 if len(df_m) >= 6:
-                    def is_strong_green(candle):
-                        c_open = candle['Open'].item() if isinstance(candle['Open'], pd.Series) else candle['Open']
-                        c_close = candle['Close'].item() if isinstance(candle['Close'], pd.Series) else candle['Close']
-                        return (c_close > c_open) and (c_close >= c_open * 1.15) # 최소 15% 이상 상승한 장대양봉
-
-                    # 1. 이번 달(-1) 또는 지난 달(-2)에 강한 장대양봉 발생 여부
-                    breakout_idx = None
-                    if is_strong_green(df_m.iloc[-1]):
-                        breakout_idx = -1
-                    elif is_strong_green(df_m.iloc[-2]):
-                        breakout_idx = -2
+                    # 1. 2년 고점 대비 하락장(바닥권) 확인 로직
+                    lookback = min(24, len(df_m))
+                    if lookback >= 3:
+                        historical_24m = df_m.iloc[-lookback:]
+                        max_high_24m = historical_24m['High'].max()
+                        min_low_24m = historical_24m['Low'].min()
                         
-                    if breakout_idx is not None:
-                        # 2. 돌파 캔들 '이전'의 데이터만으로 2년(24개월) 고점/저점을 계산 
-                        # (돌파 캔들 당일의 급등이 2년 고점을 만들어서 바닥으로 착각하는 논리적 오류 방지)
-                        if breakout_idx == -1:
-                            historical_df = df_m.iloc[:-1]
-                        else:
-                            historical_df = df_m.iloc[:-2]
+                        # 고점 대비 충분히 하락했는지 (최소 30~40% 이상 하락, max >= min * 1.5)
+                        if max_high_24m >= min_low_24m * 1.5:
                             
-                        lookback = min(24, len(historical_df))
-                        if lookback > 0:
-                            historical_24m = historical_df.iloc[-lookback:]
-                            max_high_24m = historical_24m['High'].max()
-                            min_low_24m = historical_24m['Low'].min()
+                            def check_pattern(c_2, c_1, c_0):
+                                o2, c2 = get_val(c_2['Open']), get_val(c_2['Close'])
+                                o1, c1 = get_val(c_1['Open']), get_val(c_1['Close'])
+                                o0, c0 = get_val(c_0['Open']), get_val(c_0['Close'])
+                                v1, v0 = get_val(c_1['Volume']), get_val(c_0['Volume'])
+                                
+                                pct2 = abs(c2 - o2) / o2
+                                is_t2_valid = (c2 < o2) or (pct2 <= 0.05)
+                                
+                                pct1 = abs(c1 - o1) / o1
+                                is_t1_exhausted = (c1 < o1) or (pct1 <= 0.03)
+                                
+                                is_t_green = c0 > o0
+                                is_t_volume_up = v0 > v1
+                                return is_t2_valid and is_t1_exhausted and is_t_green and is_t_volume_up
+
+                            pattern_matched = False
                             
-                            # 3. 고점 대비 최소 40% 이상 하락한 이력 (대세 하락장/바닥권)
-                            if max_high_24m >= min_low_24m * 1.6:
-                                # 4. 장대양봉 직전 3~4개월간의 바닥 다지기(지지) 확인
-                                start_idx = breakout_idx - 4
-                                end_idx = breakout_idx
-                                if start_idx >= -len(df_m):
-                                    base_candles = df_m.iloc[start_idx:end_idx]
-                                    base_high = base_candles['High'].max()
+                            # Case 1: 이번 달에 첫 양봉 돌파 (T-2, T-1, T)
+                            if check_pattern(df_m.iloc[-3], df_m.iloc[-2], df_m.iloc[-1]):
+                                pattern_matched = True
+                            # Case 2: 지난 달에 첫 양봉 돌파 (T-3, T-2, T-1) + 이번달 가격 유지 (연속 상승)
+                            elif len(df_m) >= 4 and check_pattern(df_m.iloc[-4], df_m.iloc[-3], df_m.iloc[-2]):
+                                t_o, t_c = get_val(df_m.iloc[-1]['Open']), get_val(df_m.iloc[-1]['Close'])
+                                if t_c >= t_o * 0.95: # 시가 대비 5% 이상 하락하지 않고 버텨주는 중이면 유효
+                                    pattern_matched = True
                                     
-                                    # 바닥권 조건: 지지 구간의 고점이 2년 전체 변동폭의 하위 35% 이내에 있어야 함
-                                    range_24m = max_high_24m - min_low_24m
-                                    bottom_threshold = min_low_24m + (range_24m * 0.35)
-                                    is_at_bottom = (base_high <= bottom_threshold)
-                                    
-                                    # 돌파 조건: 장대양봉의 종가가 지지 구간의 고점을 뚫어내거나 근접해야 함
-                                    b_candle = df_m.iloc[breakout_idx]
-                                    b_close = b_candle['Close'].item() if isinstance(b_candle['Close'], pd.Series) else b_candle['Close']
-                                    is_breaking_out = (b_close >= base_high * 0.95)
-                                    
-                                    if is_at_bottom and is_breaking_out:
-                                        signals.append("monthly_pattern")
+                            if pattern_matched:
+                                # 3. 현재 위치가 2년 변동폭의 하위 40% 이내의 바닥권인가? (너무 높은 자리에서 뜨는 건 제외)
+                                range_24m = max_high_24m - min_low_24m
+                                bottom_threshold = min_low_24m + (range_24m * 0.40)
+                                
+                                if get_val(df_m.iloc[-1]['Close']) <= bottom_threshold:
+                                    signals.append("monthly_pattern")
             except Exception as e:
                 logger.debug(f"{ticker} 월봉 분석 실패: {e}")
 
@@ -768,39 +765,45 @@ def get_realtime_data():
         data['BTC_NEWS'] = "- 최근 비트코인 관련 특이 뉴스 없음."
 
     # Macro / Geopolitical News
+    # Macro / Geopolitical News (Top 3 Highly Trusted from SPY)
     try:
-        import xml.etree.ElementTree as ET
-        import urllib.parse
-        
-        # 한국 뉴스 (최근 24시간)
-        kr_query = '(정부정책 OR 연준 OR 지정학적 리스크 OR 금리 OR 환율) AND (증시 OR 주식 OR 주가 OR 수혜 OR 타격 OR 전망) when:1d'
-        kr_encoded = urllib.parse.quote(kr_query)
-        kr_res = requests.get(f'https://news.google.com/rss/search?q={kr_encoded}&hl=ko&gl=KR&ceid=KR:ko')
-        kr_root = ET.fromstring(kr_res.text)
-        kr_items = kr_root.findall('.//item')[:5]
-        kr_news = []
-        for i in kr_items:
-            title = i.find('title').text if i.find('title') is not None else 'No title'
-            title = title.rsplit(' - ', 1)[0]
-            kr_news.append(f"🇰🇷 {title}")
-            
-        # 미국 뉴스 (최근 24시간)
-        us_query = '(Federal Reserve OR geopolitical risk OR interest rate OR policy) AND (stock market OR shares) when:1d'
-        us_encoded = urllib.parse.quote(us_query)
-        us_res = requests.get(f'https://news.google.com/rss/search?q={us_encoded}&hl=en-US&gl=US&ceid=US:en')
-        us_root = ET.fromstring(us_res.text)
-        us_items = us_root.findall('.//item')[:5]
-        us_news = []
-        for i in us_items:
-            title = i.find('title').text if i.find('title') is not None else 'No title'
-            title = title.rsplit(' - ', 1)[0]
+        spy_news = yf.Ticker('SPY').news[:3]
+        formatted_news = []
+        for n in spy_news:
+            title = n.get('content', {}).get('title', 'No title')
+            summary = n.get('content', {}).get('summary', 'No summary')
             ko_title = translate_to_ko(title)
-            us_news.append(f"🇺🇸 {ko_title}")
-            
-        all_news = kr_news + us_news
-        data['MACRO_NEWS'] = "\n".join(all_news) if all_news else "- 최근 24시간 내 특이 뉴스 없음."
+            ko_summary = translate_to_ko(summary)
+            formatted_news.append(f"📰 {ko_title}\n  └ 📝 요약: {ko_summary}")
+        data['MACRO_NEWS'] = "\n\n".join(formatted_news) if formatted_news else "- 최근 24시간 내 특이 뉴스 없음."
     except Exception as e:
         data['MACRO_NEWS'] = "- 뉴스 데이터를 불러올 수 없습니다."
+        
+    # Fed Speak Fetch
+    try:
+        import urllib.parse
+        import requests
+        import xml.etree.ElementTree as ET
+        
+        q = urllib.parse.quote('(Fed OR FOMC) AND (says OR said OR expects OR points) when:3d')
+        res = requests.get(f'https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en')
+        root = ET.fromstring(res.text)
+        items = root.findall('.//item')[:2]
+        fed_speak_list = []
+        for i in items:
+            title = i.find('title').text if i.find('title') is not None else ''
+            title = title.rsplit(' - ', 1)[0]
+            ko_title = translate_to_ko(title)
+            fed_speak_list.append(f" 🗣️ {ko_title}")
+        
+        if fed_speak_list:
+            data['FED_SPEAK'] = "\n\n🎙️ [연준 위원 및 FOMC 주요 발언]\n" + "\n".join(fed_speak_list)
+        else:
+            data['FED_SPEAK'] = "\n\n🎙️ [연준 위원 및 FOMC 주요 발언]\n 🗣️ 최근 3일 내 주요 발언 없음"
+    except Exception as e:
+        data['FED_SPEAK'] = ""
+
+
         
     # PE Data (Trailing PE)
     etf_symbols = {
@@ -832,8 +835,8 @@ def get_realtime_data():
     return data
 
 
-def get_top30_krx_gainers():
-    print("\n[분석] 당일 한국 주식 상승률 상위 30 종목 분석을 시작합니다...")
+def get_top70_krx_gainers():
+    print("\n[분석] 당일 한국 주식 상승률 상위 70 종목 분석을 시작합니다...")
     try:
         # 최신 데이터를 위해 새로 다운로드
         fresh_krx = fdr.StockListing('KRX')
@@ -843,15 +846,16 @@ def get_top30_krx_gainers():
         # 6자리 종목코드만 필터링 (우선주 등 제외 처리 보완 가능하나 기본 유지)
         fresh_krx = fresh_krx[fresh_krx['Code'].str.len() == 6]
         
-        # 상승률(ChagesRatio) 기준 내림차순 정렬하여 상위 30종목 추출
-        top30 = fresh_krx.sort_values('ChagesRatio', ascending=False).head(30)
+        # 상승률(ChagesRatio) 기준 내림차순 정렬하여 상위 70종목 추출
+        top70 = fresh_krx.sort_values('ChagesRatio', ascending=False).head(70)
+        top70['Rank'] = range(1, len(top70) + 1)
         
         # 섹터 정보를 위해 기존 DF_KRX_DESC와 병합
         if not DF_KRX_DESC.empty:
-            top30 = pd.merge(top30, DF_KRX_DESC, on='Code', how='left')
+            top70 = pd.merge(top70, DF_KRX_DESC, on='Code', how='left')
         else:
-            top30['Sector'] = ''
-            top30['Industry'] = ''
+            top70['Sector'] = ''
+            top70['Industry'] = ''
         
         # 종목별 테마 분류 로직 (바이오, 로봇, IT 등)
         def classify_theme(r):
@@ -873,33 +877,35 @@ def get_top30_krx_gainers():
             if ind and ind != 'nan': return ind
             return '기타'
 
-        top30['Theme'] = top30.apply(classify_theme, axis=1)
-        themes = top30['Theme'].value_counts()
-        top_themes = themes.head(5)
+        top70['Theme'] = top70.apply(classify_theme, axis=1)
+        theme_counts = top70['Theme'].value_counts()
         
         # 디스코드 보고서 생성
         report_lines = []
-        report_lines.append(f"🔍 [당일 상승률 상위 30종목 주요 섹터 분포]")
-        for theme, count in top_themes.items():
+        report_lines.append(f"🔍 [당일 상승률 상위 70종목 주요 섹터 분포]")
+        for theme, count in theme_counts.head(5).items():
             t_name = theme if theme == '기타/확인불가' or theme.endswith('관련주') else theme + ' 관련주'
             report_lines.append(f"  └ {t_name}: {count}종목")
             
-        report_lines.append(f"\n📈 [상승률 상위 30종목 표]")
-        for idx, (_, row) in enumerate(top30.iterrows(), 1):
-            name = str(row.get('Name_x', row.get('Name', row['Code'])))
-            code = str(row['Code'])
-            market = "KS" if str(row.get('Market_x', row.get('Market', ''))) == 'KOSPI' else "KQ"
-            chg = float(row.get('ChagesRatio', 0.0))
-            theme = str(row.get('Theme', '-'))
+        report_lines.append(f"\n📈 [상승률 상위 70종목 섹터별 상세 표]")
+        for theme, count in theme_counts.items():
             t_name = theme if theme == '기타/확인불가' or theme.endswith('관련주') else theme + ' 관련주'
-            report_lines.append(f"{idx:02d}위 | {name} ({code}.{market}) (+{chg:.2f}%) | {t_name}")
+            report_lines.append(f"\n📁 **[{t_name}]** ({count}종목)")
             
-        # 분석 요약 생략 (리포트 11번의 최종 요약으로 대체됨)
+            theme_stocks = top70[top70['Theme'] == theme]
+            for _, row in theme_stocks.iterrows():
+                rank = row['Rank']
+                name = str(row.get('Name_x', row.get('Name', row['Code'])))
+                code = str(row['Code'])
+                market = "KS" if str(row.get('Market_x', row.get('Market', ''))) == 'KOSPI' else "KQ"
+                chg = float(row.get('ChagesRatio', 0.0))
+                report_lines.append(f"  └ {rank:02d}위 | {name} ({code}.{market}) (+{chg:.2f}%)")
+            
         # 프론트엔드 대시보드용 데이터
-        top30_data = []
-        for idx, row in top30.iterrows():
-            top30_data.append({
-                "rank": len(top30_data) + 1,
+        top70_data = []
+        for idx, row in top70.iterrows():
+            top70_data.append({
+                "rank": row['Rank'],
                 "code": row['Code'],
                 "name": row.get('Name_x', row.get('Name', row['Code'])),
                 "sector": str(row['Sector']) if pd.notna(row.get('Sector')) else '',
@@ -908,27 +914,25 @@ def get_top30_krx_gainers():
                 "change_ratio": float(row['ChagesRatio']) if pd.notna(row['ChagesRatio']) else 0.0
             })
             
-        return "\n".join(report_lines), top30_data
+        return "\n".join(report_lines), top70_data
     except Exception as e:
-        logger.warning(f"Top 30 분석 실패: {e}")
+        logger.warning(f"Top 70 분석 실패: {e}")
         return f"- 분석 중 오류 발생: {e}", []
 
-def get_top30_us_gainers():
-    print("\n[분석] 당일 미국 주식 상승률 상위 30 종목 분석을 시작합니다...")
+def get_top70_us_gainers():
+    print("\n[분석] 당일 미국 주식 상승률 상위 70 종목 분석을 시작합니다...")
     try:
-        url = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-US&region=US&scrIds=day_gainers&count=30'
+        url = 'https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=true&lang=en-US&region=US&scrIds=day_gainers&count=70'
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=10)
         quotes = res.json().get('finance', {}).get('result', [{}])[0].get('quotes', [])
         
-        sectors_list = []
-        industries_list = []
-        top30_info = []
+        top70_info = []
 
         import yfinance as yf
         import time
         import pandas as pd
         
-        for q in quotes[:30]:
+        for idx, q in enumerate(quotes[:70], 1):
             sym = q.get('symbol', '')
             name = q.get('shortName', sym)
             ko_name = translate_to_ko(name)
@@ -945,40 +949,42 @@ def get_top30_us_gainers():
                 time.sleep(0.1) # Yahoo 차단 방지
             except Exception:
                 pass
-            
-            if sector != "Unknown":
-                sectors_list.append(sector)
-            if industry != "Unknown":
-                industries_list.append(industry)
                 
-            top30_info.append({"sym": sym, "name": ko_name, "chg": chg, "sector": sector, "industry": industry})
+            top70_info.append({"rank": idx, "sym": sym, "name": ko_name, "chg": chg, "sector": sector, "industry": industry})
 
-        sectors_counts = pd.Series(sectors_list).value_counts().head(3) if sectors_list else pd.Series(dtype=int)
-        industries_counts = pd.Series(industries_list).value_counts().head(3) if industries_list else pd.Series(dtype=int)
+        top70_df = pd.DataFrame(top70_info)
+        if top70_df.empty:
+            return "- 데이터를 불러올 수 없습니다.", []
+            
+        sector_counts = top70_df['sector'].value_counts()
 
         report_lines = []
         report_lines.append(f"🔍 [당일 상승률 상위 종목 주요 섹터 분포]")
-        if not sectors_counts.empty:
-            for sec, count in sectors_counts.items():
-                s_name = translate_to_ko(sec)
-                s_name = s_name if s_name == '기타/확인불가' or s_name.endswith('관련주') else s_name + ' 관련주'
-                report_lines.append(f"  └ {s_name}: {count}종목")
-        else:
-            report_lines.append("  └ 정보 없음")
+        for sec, count in sector_counts.head(5).items():
+            s_name = translate_to_ko(sec) if sec != 'Unknown' else '기타/확인불가'
+            s_name = s_name if s_name == '기타/확인불가' or s_name.endswith('관련주') else s_name + ' 관련주'
+            report_lines.append(f"  └ {s_name}: {count}종목")
 
-        report_lines.append(f"\n📈 [상승률 상위 종목 표]")
-        for idx, info in enumerate(top30_info, 1):
-            sec_display = translate_to_ko(info['sector']) if info['sector'] != 'Unknown' else '기타/확인불가'
-            s_name = sec_display if sec_display == '기타/확인불가' or sec_display.endswith('관련주') else sec_display + ' 관련주'
-            chg = float(info['chg'])
-            report_lines.append(f"{idx:02d}위 | {info['sym']} {info['name']} (+{chg:.2f}%) | {s_name}")
+        report_lines.append(f"\n📈 [상승률 상위 70종목 섹터별 상세 표]")
+        for sec, count in sector_counts.items():
+            s_name = translate_to_ko(sec) if sec != 'Unknown' else '기타/확인불가'
+            s_name = s_name if s_name == '기타/확인불가' or s_name.endswith('관련주') else s_name + ' 관련주'
+            report_lines.append(f"\n📁 **[{s_name}]** ({count}종목)")
+            
+            sec_stocks = top70_df[top70_df['sector'] == sec]
+            for _, row in sec_stocks.iterrows():
+                rank = row['rank']
+                sym = row['sym']
+                name = row['name']
+                chg = row['chg']
+                report_lines.append(f"  └ {rank:02d}위 | {sym} {name} (+{chg:.2f}%)")
         
-        return "\n".join(report_lines), [info['sym'] for info in top30_info]
+        return "\n".join(report_lines), [info['sym'] for info in top70_info]
     except Exception as e:
-        logger.warning(f"US Top 30 분석 실패: {e}")
+        logger.warning(f"US Top 70 분석 실패: {e}")
         return f"- 미국 시장 분석 중 오류 발생: {e}", []
 
-def send_to_discord(top30_krx_text, top30_us_text):
+def send_to_discord(top70_krx_text, top70_us_text):
     if not DISCORD_WEBHOOK_URL:
         print("\n[안내] 디스코드 웹훅 URL이 설정되지 않아 메시지를 전송하지 않습니다. (.env 파일을 확인하세요)")
         return
@@ -1069,7 +1075,7 @@ def send_to_discord(top30_krx_text, top30_us_text):
 
 💵 금리: {d.get('FED_RATE', 'Fed 3.50~3.75%')}
 
-💧 유동성 NFCI: {d.get('NFCI', '-0.52')}""",
+💧 유동성 NFCI: {d.get('NFCI', '-0.52')}{d.get('FED_SPEAK', '')}""",
 
         f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 안티그레비티 통합 전략 리포트 (2/10)
@@ -1194,12 +1200,12 @@ IT·커뮤니케이션 P/E 29배, 차익 실현 압력 극심""",
         f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 안티그레비티 통합 전략 리포트 (9/10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🇰🇷 당일 한국 주식 상승률 상위 30 종목 분석
-{top30_krx_text}
+🇰🇷 당일 한국 주식 상승률 상위 70 종목 분석
+{top70_krx_text}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🇺🇸 당일 미국 주식 상승률 상위 종목 분석
-{top30_us_text}""",
+🇺🇸 당일 미국 주식 상승률 상위 70 종목 분석
+{top70_us_text}""",
 
         f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 안티그레비티 통합 전략 리포트 (10/10)
@@ -1259,6 +1265,10 @@ if __name__ == "__main__":
     all_scan_results = []
     skip_scan = False
 
+    # 당일 상위 70종목 분석 데이터 가져오기 (오류 수정)
+    top70_krx_text, top70_data = get_top70_krx_gainers()
+    top70_us_text, _ = get_top70_us_gainers()
+
     if os.path.exists("scan_results.json"):
         try:
             with open("scan_results.json", "r", encoding="utf-8") as f:
@@ -1266,10 +1276,11 @@ if __name__ == "__main__":
                 cached_time_str = cached_data.get("timestamp", "")
                 if cached_time_str:
                     cached_time = datetime.datetime.strptime(cached_time_str, "%Y-%m-%d %H:%M:%S")
-                    if (datetime.datetime.now() - cached_time).total_seconds() < 3 * 3600:
-                        print(f"\n[안내] 최근 스캔({cached_time_str})이 3시간 이내에 수행되었습니다. 무거운 주식 스캔을 생략하고 디스코드 메시지만 전송합니다.")
-                        all_scan_results = cached_data.get("data", [])
-                        skip_scan = True
+                    # [임시 해제] 3시간 캐시 로직 무효화 (회원님 요청으로 강제 스캔)
+                    # if (datetime.datetime.now() - cached_time).total_seconds() < 3 * 3600:
+                    #     print(f"\n[안내] 최근 스캔({cached_time_str})이 3시간 이내에 수행되었습니다. 무거운 주식 스캔을 생략하고 디스코드 메시지만 전송합니다.")
+                    #     all_scan_results = cached_data.get("data", [])
+                    #     skip_scan = True
         except Exception as e:
             logger.warning(f"캐시 읽기 실패: {e}")
 
@@ -1313,7 +1324,7 @@ if __name__ == "__main__":
         output_data = {
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "data": all_scan_results,
-            "top30": top30_data
+            "top30": top70_data  # 프론트엔드 호환성을 위해 키는 'top30' 유지
         }
     
         # 루트에 저장 (FastAPI가 읽는 경로)
@@ -1329,7 +1340,7 @@ if __name__ == "__main__":
 
     # 최종 디스코드 9분할 리포트 전송
     print("\n[전송] 디스코드 리포트 전송을 시작합니다...")
-    send_to_discord(top30_krx_text, top30_us_text)
+    send_to_discord(top70_krx_text, top70_us_text)
 
     print(f"\n[완료] 프로그램이 성공적으로 종료되었습니다! 대시보드: {BASE_DASHBOARD_URL}")
 

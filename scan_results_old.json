@@ -1,0 +1,812 @@
+{
+    "timestamp": "2026-05-30 06:15:34",
+    "data": [
+        {
+            "theme": "IT (소프트웨어, 하드웨어, 반도체, IT 기기 및 서비스)",
+            "krx": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            },
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "커뮤니케이션 (통신, 미디어, 엔터테인먼트, 인터랙티브 미디어 및 서비스)",
+            "krx": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            },
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "임의소비재 (자동차 및 부품, 내구소비재, 의류, 레저, 호텔/레스토랑)",
+            "krx": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            },
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "필수소비재 (식음료, 유통, 가정용품, 개인용품, 담배)",
+            "krx": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            },
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "헬스케어 (제약, 생명공학(바이오), 의료기기, 헬스케어 서비스 및 장비)",
+            "krx": {},
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "금융 (은행, 보험, 다각화된 금융 서비스, 소비자 금융)",
+            "krx": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            },
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "산업재 (자본재, 기계, 상업/전문 서비스, 운송 및 물류)",
+            "krx": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            },
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "소재 (화학, 건설자재, 금속 및 채광, 종이/포장재)",
+            "krx": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            },
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "에너지 (석유/가스 탐사 및 생산, 정제, 에너지 장비 및 서비스)",
+            "krx": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            },
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "유틸리티 (전력, 가스, 수도, 다각화된 재생에너지)",
+            "krx": {},
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        },
+        {
+            "theme": "부동산 (부동산 관리 및 개발, 리츠(REITs))",
+            "krx": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            },
+            "nasdaq": {
+                "monthly_pattern": [],
+                "cloud_twist": [],
+                "cloud_twist_1w": [],
+                "ma200_support_breakout": [],
+                "5yr_high_breakout": []
+            }
+        }
+    ],
+    "top30": [
+        {
+            "rank": 1,
+            "code": "246690",
+            "name": "TS인베스트먼트",
+            "sector": "중견기업부",
+            "industry": "신탁업 및 집합투자업",
+            "marcap": 72438351288,
+            "change_ratio": 29.96
+        },
+        {
+            "rank": 2,
+            "code": "004415",
+            "name": "서울식품우",
+            "sector": "",
+            "industry": "",
+            "marcap": 2240071500,
+            "change_ratio": 29.94
+        },
+        {
+            "rank": 3,
+            "code": "417860",
+            "name": "오브젠",
+            "sector": "벤처기업부",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 42413061180,
+            "change_ratio": 29.93
+        },
+        {
+            "rank": 4,
+            "code": "066570",
+            "name": "LG전자",
+            "sector": "",
+            "industry": "통신 및 방송 장비 제조업",
+            "marcap": 47725198934000,
+            "change_ratio": 29.93
+        },
+        {
+            "rank": 5,
+            "code": "064400",
+            "name": "LG씨엔에스",
+            "sector": "",
+            "industry": "컴퓨터 프로그래밍, 시스템 통합 및 관리업",
+            "marcap": 11025620882400,
+            "change_ratio": 29.91
+        },
+        {
+            "rank": 6,
+            "code": "069140",
+            "name": "누리플랜",
+            "sector": "벤처기업부",
+            "industry": "구조용 금속제품, 탱크 및 증기발생기 제조업",
+            "marcap": 32531457620,
+            "change_ratio": 29.9
+        },
+        {
+            "rank": 7,
+            "code": "300080",
+            "name": "플리토",
+            "sector": "기술성장기업부",
+            "industry": "자료처리, 호스팅, 포털 및 기타 인터넷 정보매개 서비스업",
+            "marcap": 180734688450,
+            "change_ratio": 29.89
+        },
+        {
+            "rank": 8,
+            "code": "009155",
+            "name": "삼성전기우",
+            "sector": "",
+            "industry": "",
+            "marcap": 2223842760000,
+            "change_ratio": 29.88
+        },
+        {
+            "rank": 9,
+            "code": "011070",
+            "name": "LG이노텍",
+            "sector": "",
+            "industry": "전자부품 제조업",
+            "marcap": 34506642006000,
+            "change_ratio": 28.57
+        },
+        {
+            "rank": 10,
+            "code": "003550",
+            "name": "LG",
+            "sector": "",
+            "industry": "기타 금융업",
+            "marcap": 22608884361000,
+            "change_ratio": 26.6
+        },
+        {
+            "rank": 11,
+            "code": "336370",
+            "name": "솔루스첨단소재",
+            "sector": "",
+            "industry": "전자부품 제조업",
+            "marcap": 820840751360,
+            "change_ratio": 25.7
+        },
+        {
+            "rank": 12,
+            "code": "307950",
+            "name": "현대오토에버",
+            "sector": "",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 25531727242000,
+            "change_ratio": 24.8
+        },
+        {
+            "rank": 13,
+            "code": "181710",
+            "name": "NHN",
+            "sector": "",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 1667134775100,
+            "change_ratio": 22.5
+        },
+        {
+            "rank": 14,
+            "code": "066575",
+            "name": "LG전자우",
+            "sector": "",
+            "industry": "",
+            "marcap": 1644250314300,
+            "change_ratio": 21.91
+        },
+        {
+            "rank": 15,
+            "code": "090360",
+            "name": "로보스타",
+            "sector": "중견기업부",
+            "industry": "특수 목적용 기계 제조업",
+            "marcap": 916500000000,
+            "change_ratio": 20.98
+        },
+        {
+            "rank": 16,
+            "code": "226340",
+            "name": "본느",
+            "sector": "중견기업부",
+            "industry": "기타 화학제품 제조업",
+            "marcap": 21479639040,
+            "change_ratio": 20.47
+        },
+        {
+            "rank": 17,
+            "code": "389140",
+            "name": "포바이포",
+            "sector": "벤처기업부",
+            "industry": "영화, 비디오물, 방송프로그램 제작 및 배급업",
+            "marcap": 119437681950,
+            "change_ratio": 20.43
+        },
+        {
+            "rank": 18,
+            "code": "018260",
+            "name": "삼성에스디에스",
+            "sector": "",
+            "industry": "컴퓨터 프로그래밍, 시스템 통합 및 관리업",
+            "marcap": 23135962200000,
+            "change_ratio": 20.32
+        },
+        {
+            "rank": 19,
+            "code": "000150",
+            "name": "두산",
+            "sector": "",
+            "industry": "전자부품 제조업",
+            "marcap": 31934242620000,
+            "change_ratio": 18.8
+        },
+        {
+            "rank": 20,
+            "code": "012170",
+            "name": "아센디오",
+            "sector": "",
+            "industry": "영화, 비디오물, 방송프로그램 제작 및 배급업",
+            "marcap": 30486261312,
+            "change_ratio": 18.46
+        },
+        {
+            "rank": 21,
+            "code": "189330",
+            "name": "씨이랩",
+            "sector": "기술성장기업부",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 100671907320,
+            "change_ratio": 18.04
+        },
+        {
+            "rank": 22,
+            "code": "242040",
+            "name": "나무기술",
+            "sector": "기술성장기업부",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 303842997920,
+            "change_ratio": 17.22
+        },
+        {
+            "rank": 23,
+            "code": "011300",
+            "name": "우성머티리얼스",
+            "sector": "",
+            "industry": "직물직조 및 직물제품 제조업",
+            "marcap": 45190685850,
+            "change_ratio": 16.33
+        },
+        {
+            "rank": 24,
+            "code": "061090",
+            "name": "세나테크놀로지",
+            "sector": "중견기업부",
+            "industry": "통신 및 방송 장비 제조업",
+            "marcap": 270517280000,
+            "change_ratio": 15.93
+        },
+        {
+            "rank": 25,
+            "code": "353200",
+            "name": "대덕전자",
+            "sector": "",
+            "industry": "전자부품 제조업",
+            "marcap": 9433690982500,
+            "change_ratio": 15.84
+        },
+        {
+            "rank": 26,
+            "code": "009190",
+            "name": "대양금속",
+            "sector": "",
+            "industry": "1차 철강 제조업",
+            "marcap": 99990926875,
+            "change_ratio": 15.17
+        },
+        {
+            "rank": 27,
+            "code": "009150",
+            "name": "삼성전기",
+            "sector": "",
+            "industry": "전자부품 제조업",
+            "marcap": 158873491392000,
+            "change_ratio": 15.04
+        },
+        {
+            "rank": 28,
+            "code": "332190",
+            "name": "오션스바이오",
+            "sector": "일반기업부",
+            "industry": "의료용 기기 제조업",
+            "marcap": 10197089100,
+            "change_ratio": 15.0
+        },
+        {
+            "rank": 29,
+            "code": "140660",
+            "name": "위월드",
+            "sector": "일반기업부",
+            "industry": "통신 및 방송 장비 제조업",
+            "marcap": 2574305820,
+            "change_ratio": 15.0
+        },
+        {
+            "rank": 30,
+            "code": "217320",
+            "name": "썬테크",
+            "sector": "일반기업부",
+            "industry": "전동기, 발전기 및 전기 변환 · 공급 · 제어 장치 제조업",
+            "marcap": 16800000000,
+            "change_ratio": 14.29
+        },
+        {
+            "rank": 31,
+            "code": "040350",
+            "name": "크레오에스지",
+            "sector": "벤처기업부",
+            "industry": "컴퓨터 프로그래밍, 시스템 통합 및 관리업",
+            "marcap": 92136911040,
+            "change_ratio": 14.15
+        },
+        {
+            "rank": 32,
+            "code": "035420",
+            "name": "NAVER",
+            "sector": "",
+            "industry": "자료처리, 호스팅, 포털 및 기타 인터넷 정보매개 서비스업",
+            "marcap": 36708463584000,
+            "change_ratio": 14.15
+        },
+        {
+            "rank": 33,
+            "code": "178600",
+            "name": "대동고려삼",
+            "sector": "일반기업부",
+            "industry": "기타 식품 제조업",
+            "marcap": 9299664000,
+            "change_ratio": 13.9
+        },
+        {
+            "rank": 34,
+            "code": "003555",
+            "name": "LG우",
+            "sector": "",
+            "industry": "",
+            "marcap": 247219437900,
+            "change_ratio": 13.55
+        },
+        {
+            "rank": 35,
+            "code": "286750",
+            "name": "나노실리칸첨단소재",
+            "sector": "투자주의환기종목(소속부없음)",
+            "industry": "기초 화학물질 제조업",
+            "marcap": 47210535218,
+            "change_ratio": 13.38
+        },
+        {
+            "rank": 36,
+            "code": "000155",
+            "name": "두산우",
+            "sector": "",
+            "industry": "",
+            "marcap": 2633668458000,
+            "change_ratio": 12.84
+        },
+        {
+            "rank": 37,
+            "code": "317770",
+            "name": "엑스페릭스",
+            "sector": "벤처기업부",
+            "industry": "전자부품 제조업",
+            "marcap": 124054253000,
+            "change_ratio": 12.4
+        },
+        {
+            "rank": 38,
+            "code": "340360",
+            "name": "다보링크",
+            "sector": "투자주의환기종목(소속부없음)",
+            "industry": "통신 및 방송 장비 제조업",
+            "marcap": 82467430848,
+            "change_ratio": 12.26
+        },
+        {
+            "rank": 39,
+            "code": "286940",
+            "name": "롯데이노베이트",
+            "sector": "",
+            "industry": "컴퓨터 프로그래밍, 시스템 통합 및 관리업",
+            "marcap": 339654289150,
+            "change_ratio": 12.25
+        },
+        {
+            "rank": 40,
+            "code": "035510",
+            "name": "신세계 I&C",
+            "sector": "",
+            "industry": "컴퓨터 프로그래밍, 시스템 통합 및 관리업",
+            "marcap": 236417019000,
+            "change_ratio": 12.14
+        },
+        {
+            "rank": 41,
+            "code": "950190",
+            "name": "고스트스튜디오",
+            "sector": "외국기업(소속부없음)",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 105047666130,
+            "change_ratio": 12.08
+        },
+        {
+            "rank": 42,
+            "code": "012330",
+            "name": "현대모비스",
+            "sector": "",
+            "industry": "자동차 신품 부품 제조업",
+            "marcap": 69682623744000,
+            "change_ratio": 11.95
+        },
+        {
+            "rank": 43,
+            "code": "009415",
+            "name": "태영건설우",
+            "sector": "",
+            "industry": "",
+            "marcap": 6174753000,
+            "change_ratio": 11.76
+        },
+        {
+            "rank": 44,
+            "code": "034220",
+            "name": "LG디스플레이",
+            "sector": "",
+            "industry": "전자부품 제조업",
+            "marcap": 8045000000000,
+            "change_ratio": 11.58
+        },
+        {
+            "rank": 45,
+            "code": "108490",
+            "name": "로보티즈",
+            "sector": "기술성장기업부",
+            "industry": "특수 목적용 기계 제조업",
+            "marcap": 4770862614000,
+            "change_ratio": 11.28
+        },
+        {
+            "rank": 46,
+            "code": "486990",
+            "name": "노타",
+            "sector": "기술성장기업부",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 821829855000,
+            "change_ratio": 11.27
+        },
+        {
+            "rank": 47,
+            "code": "263800",
+            "name": "데이타솔루션",
+            "sector": "중견기업부",
+            "industry": "기계장비 및 관련 물품 도매업",
+            "marcap": 81775915200,
+            "change_ratio": 10.89
+        },
+        {
+            "rank": 48,
+            "code": "018880",
+            "name": "한온시스템",
+            "sector": "",
+            "industry": "일반 목적용 기계 제조업",
+            "marcap": 5777858167760,
+            "change_ratio": 10.39
+        },
+        {
+            "rank": 49,
+            "code": "222420",
+            "name": "쎄노텍",
+            "sector": "벤처기업부",
+            "industry": "기타 비금속 광물제품 제조업",
+            "marcap": 71417321425,
+            "change_ratio": 10.24
+        },
+        {
+            "rank": 50,
+            "code": "017550",
+            "name": "수산세보틱스",
+            "sector": "",
+            "industry": "특수 목적용 기계 제조업",
+            "marcap": 176589537900,
+            "change_ratio": 9.9
+        },
+        {
+            "rank": 51,
+            "code": "000157",
+            "name": "두산2우B",
+            "sector": "",
+            "industry": "",
+            "marcap": 477775330000,
+            "change_ratio": 9.86
+        },
+        {
+            "rank": 52,
+            "code": "216080",
+            "name": "제테마",
+            "sector": "벤처기업부",
+            "industry": "의료용품 및 기타 의약 관련제품 제조업",
+            "marcap": 212163593310,
+            "change_ratio": 9.85
+        },
+        {
+            "rank": 53,
+            "code": "121060",
+            "name": "유니포인트",
+            "sector": "일반기업부",
+            "industry": "컴퓨터 프로그래밍, 시스템 통합 및 관리업",
+            "marcap": 5126263821,
+            "change_ratio": 9.79
+        },
+        {
+            "rank": 54,
+            "code": "462310",
+            "name": "뉴키즈온",
+            "sector": "중견기업부",
+            "industry": "봉제의복 제조업",
+            "marcap": 26765345670,
+            "change_ratio": 9.55
+        },
+        {
+            "rank": 55,
+            "code": "241520",
+            "name": "DSC인베스트먼트",
+            "sector": "중견기업부",
+            "industry": "신탁업 및 집합투자업",
+            "marcap": 375060000000,
+            "change_ratio": 9.39
+        },
+        {
+            "rank": 56,
+            "code": "012205",
+            "name": "계양전기우",
+            "sector": "",
+            "industry": "",
+            "marcap": 16028073090,
+            "change_ratio": 8.9
+        },
+        {
+            "rank": 57,
+            "code": "079900",
+            "name": "전진건설로봇",
+            "sector": "",
+            "industry": "특수 목적용 기계 제조업",
+            "marcap": 878471209000,
+            "change_ratio": 8.86
+        },
+        {
+            "rank": 58,
+            "code": "314130",
+            "name": "지놈앤컴퍼니",
+            "sector": "기술성장기업부",
+            "industry": "기초 의약물질 제조업",
+            "marcap": 273612256200,
+            "change_ratio": 8.7
+        },
+        {
+            "rank": 59,
+            "code": "032830",
+            "name": "삼성생명",
+            "sector": "",
+            "industry": "보험업",
+            "marcap": 77700000000000,
+            "change_ratio": 8.67
+        },
+        {
+            "rank": 60,
+            "code": "109740",
+            "name": "디에스케이",
+            "sector": "벤처기업부",
+            "industry": "특수 목적용 기계 제조업",
+            "marcap": 127394982450,
+            "change_ratio": 8.54
+        },
+        {
+            "rank": 61,
+            "code": "065060",
+            "name": "지엔코",
+            "sector": "중견기업부",
+            "industry": "봉제의복 제조업",
+            "marcap": 13971069600,
+            "change_ratio": 8.5
+        },
+        {
+            "rank": 62,
+            "code": "230240",
+            "name": "에치에프알",
+            "sector": "중견기업부",
+            "industry": "통신 및 방송 장비 제조업",
+            "marcap": 423891650000,
+            "change_ratio": 8.33
+        },
+        {
+            "rank": 63,
+            "code": "037440",
+            "name": "희림",
+            "sector": "우량기업부",
+            "industry": "건축기술, 엔지니어링 및 관련 기술 서비스업",
+            "marcap": 79636557000,
+            "change_ratio": 8.33
+        },
+        {
+            "rank": 64,
+            "code": "108860",
+            "name": "셀바스AI",
+            "sector": "벤처기업부",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 298485021100,
+            "change_ratio": 8.3
+        },
+        {
+            "rank": 65,
+            "code": "028260",
+            "name": "삼성물산",
+            "sector": "",
+            "industry": "기타 전문 도매업",
+            "marcap": 70137478782500,
+            "change_ratio": 8.26
+        },
+        {
+            "rank": 66,
+            "code": "090850",
+            "name": "현대이지웰",
+            "sector": "우량기업부",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 127000151950,
+            "change_ratio": 8.24
+        },
+        {
+            "rank": 67,
+            "code": "420770",
+            "name": "기가비스",
+            "sector": "우량기업부",
+            "industry": "특수 목적용 기계 제조업",
+            "marcap": 1792352181200,
+            "change_ratio": 8.19
+        },
+        {
+            "rank": 68,
+            "code": "396270",
+            "name": "넥스트칩",
+            "sector": "벤처기업부",
+            "industry": "반도체 제조업",
+            "marcap": 153748739925,
+            "change_ratio": 7.84
+        },
+        {
+            "rank": 69,
+            "code": "348030",
+            "name": "모비릭스",
+            "sector": "중견기업부",
+            "industry": "소프트웨어 개발 및 공급업",
+            "marcap": 23193177000,
+            "change_ratio": 7.81
+        },
+        {
+            "rank": 70,
+            "code": "012160",
+            "name": "영흥",
+            "sector": "",
+            "industry": "1차 철강 제조업",
+            "marcap": 32491063072,
+            "change_ratio": 7.77
+        }
+    ]
+}
