@@ -67,7 +67,7 @@ print("[준비 완료]\n")
 # ============================================================
 # 급등주 선행 패턴 (Top 30 그림자) 추출 및 매칭 로직
 # ============================================================
-TOP30_TEMPLATES = []
+TOP70_TEMPLATES = []
 
 def extract_features_for_template(df):
     try:
@@ -192,9 +192,9 @@ def is_pattern_matched(current_feat, templates):
             break
 
     return cond_match, shape_match
-def build_top30_templates(krx_tickers, us_tickers):
-    global TOP30_TEMPLATES
-    TOP30_TEMPLATES = []
+def build_top70_templates(krx_tickers, us_tickers):
+    global TOP70_TEMPLATES
+    TOP70_TEMPLATES = []
     print(f"\n[패턴 스캔 준비] 당일 급등한 상위 종목 {len(krx_tickers) + len(us_tickers)}개의 급등 직전 템플릿 추출 중...")
     
     import datetime
@@ -205,7 +205,7 @@ def build_top30_templates(krx_tickers, us_tickers):
             df = fdr.DataReader(code, start_date)
             if not df.empty:
                 feat = extract_features_for_template(df)
-                if feat: TOP30_TEMPLATES.append(feat)
+                if feat: TOP70_TEMPLATES.append(feat)
         except Exception:
             pass
             
@@ -224,16 +224,16 @@ def build_top30_templates(krx_tickers, us_tickers):
                                 'Close': data['Close'][t]
                             }).dropna()
                             feat = extract_features_for_template(df_t)
-                            if feat: TOP30_TEMPLATES.append(feat)
+                            if feat: TOP70_TEMPLATES.append(feat)
                     except Exception: pass
             else:
                 df_t = data.dropna()
                 feat = extract_features_for_template(df_t)
-                if feat: TOP30_TEMPLATES.append(feat)
+                if feat: TOP70_TEMPLATES.append(feat)
         except Exception:
             pass
             
-    print(f"  > 완료: 유의미한 급등 전조 패턴 템플릿 {len(TOP30_TEMPLATES)}개 생성됨.")
+    print(f"  > 완료: 총 {len(TOP70_TEMPLATES)}개의 템플릿 생성됨.")
 
 
 
@@ -258,6 +258,8 @@ def calculate_ichimoku(df):
 def analyze_stocks(tickers, ticker_to_name):
     results = {
         "monthly_pattern": [],
+        "top30_pattern_match": [],
+        "top30_shape_match": [],
         "cloud_twist": [],
         "cloud_twist_1w": [],
         "ma200_support_breakout": [],
@@ -382,10 +384,10 @@ def analyze_stocks(tickers, ticker_to_name):
                     logger.debug(f"{ticker} MA200 분석 실패: {e}")
 
             # Top 30 그림자 (급등 전조 패턴) 매칭 (옵션 A + B)
-            if len(TOP30_TEMPLATES) > 0:
+            if len(TOP70_TEMPLATES) > 0:
                 current_feat = extract_current_features(df)
                 if current_feat:
-                    cond_match, shape_match = is_pattern_matched(current_feat, TOP30_TEMPLATES)
+                    cond_match, shape_match = is_pattern_matched(current_feat, TOP70_TEMPLATES)
                     if cond_match:
                         signals.append("top30_pattern_match")
                     if shape_match:
@@ -641,8 +643,8 @@ BASE_DASHBOARD_URL = "http://localhost:5173"
 
 labels = {
     "monthly_pattern": "🛡️ 월봉 지지 후 상승 (바닥권)",
-    "top30_pattern_match": "🔥 급등주 선행 패턴 일치 (조건)",
-    "top30_shape_match": "📈 급등주 선행 패턴 일치 (모양)",
+    "top30_pattern_match": "🔥 최신 트렌드 상승 패턴 (조건)",
+    "top30_shape_match": "📈 최신 트렌드 상승 패턴 (모양)",
     "cloud_twist": "🟢 양운 전환 (당일)",
     "cloud_twist_1w": "❇️ 1주 내 양운 전환: 음운에서 양운 크로스오버",
     "ma200_support_breakout": "📈 200일선: 지지 또는 돌파",
@@ -1318,7 +1320,13 @@ if __name__ == "__main__":
 
     # 당일 상위 70종목 분석 데이터 가져오기 (오류 수정)
     top70_krx_text, top70_data = get_top70_krx_gainers()
-    top70_us_text, _ = get_top70_us_gainers()
+    top70_us_text, top70_us_data = get_top70_us_gainers()
+    
+    # 급등주 선행 패턴(TOP70) 템플릿 빌드 (여기서 호출해야 분석 시 매칭 가능)
+    if not skip_scan:
+        krx_top = [t['code'] for t in top70_data][:70] if top70_data else []
+        us_top = top70_us_data[:70] if top70_us_data else []
+        build_top70_templates(krx_top, us_top)
 
     if os.path.exists("scan_results.json"):
         try:
