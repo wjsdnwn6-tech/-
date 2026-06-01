@@ -266,7 +266,15 @@ def analyze_stocks(tickers, ticker_to_name):
     }
 
     # 우선주/특수종목(띄어쓰기 포함 티커) 사전 제외
-    valid_tickers = [t for t in tickers if ' ' not in t]
+    def _is_valid_ticker(t, name_map):
+        if ' ' in t: return False
+        name = name_map.get(t, '')
+        import re
+        if re.search(r'\uc6b0[A-C]?$', name): return False
+        skip_kw = ['\uc2a4\ud329', 'SPAC', '\uae30\uc5c5\uc778\uc218', '\uc778\uc218\ubaa9\uc801', '\uc6b0\uc120\uc8fc']
+        if any(kw in name for kw in skip_kw): return False
+        return True
+    valid_tickers = [t for t in tickers if _is_valid_ticker(t, ticker_to_name)]
     total = len(valid_tickers)
     if total == 0:
         return results
@@ -356,7 +364,7 @@ def analyze_stocks(tickers, ticker_to_name):
             # ── 시가총액 필터 (0인 경우 제외, 미국 주식은 한화 5000억 이상) ──
             if market_cap <= 0:
                 continue
-            US_MIN_MARKET_CAP = 357_000_000
+            US_MIN_MARKET_CAP = 714_000_000  # 약 1조원 ($714M ≈ 1조원 @1400원/달러)
             if not is_krx and market_cap < US_MIN_MARKET_CAP:
                 continue
 
@@ -611,10 +619,19 @@ def get_market_tickers(theme_name, market_type="ALL"):
                 market_col = 'Market_x' if 'Market_x' in krx_filtered.columns else 'Market'
 
                 for _, row in krx_filtered.iterrows():
+                    stock_name = row[name_col]
+                    # 우선주 제외 (이름 끝이 '우', '우B', '우C' 등)
+                    import re
+                    if re.search(r'우[A-C]?$', stock_name):
+                        continue
+                    # 스팩(SPAC)/기업인수목적/리츠 우선주 등 제외
+                    skip_keywords = ['스팩', 'SPAC', '기업인수', '인수목적', '우선주']
+                    if any(kw in stock_name for kw in skip_keywords):
+                        continue
                     suffix = ".KS" if row[market_col] == 'KOSPI' else ".KQ"
                     ticker = f"{row['Code']}{suffix}"
                     krx_tickers.append(ticker)
-                    ticker_to_name[ticker] = row[name_col]
+                    ticker_to_name[ticker] = stock_name
 
             krx_tickers = list(set(krx_tickers))
             print(f"  → {len(krx_tickers)}개 종목 발견")
