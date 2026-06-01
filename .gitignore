@@ -1,1 +1,25 @@
+# IDE / System
 .antigravity/
+__pycache__/
+*.pyc
+
+# 환경변수 (API 키 보호)
+.env
+
+# DB & 캐시
+paper_trading.db
+ticker_names.json
+scan_results.json
+scan_results_old.json
+
+# Node.js
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# 임시 파일
+*.tmp
+temp_*
+
+# 과거 패치/테스트 파일
+archive/

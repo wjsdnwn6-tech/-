@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sqlite3
 import paper_trade
-import yfinance as yf
 import os
 import json
 
@@ -51,10 +50,7 @@ def get_status():
         profit_rate = ((eval_amount - buy_amount) / buy_amount) * 100
         total_eval += eval_amount
 
-        try:
-            name = yf.Ticker(ticker).info.get('shortName', ticker)
-        except Exception:
-            name = ticker
+        name = paper_trade.get_stock_name(ticker)
 
         portfolio.append({
             "ticker": ticker,

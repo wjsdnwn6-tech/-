@@ -8,13 +8,65 @@ if hasattr(sys.stdout, 'reconfigure'):
 import yfinance as yf
 from datetime import datetime
 import os
+import json
 
 DB_NAME = "paper_trading.db"
 INITIAL_SEED = 100_000_000  # 기본 가상계좌 자본금 1억원
-FX_RATE = 1400              # 편의상 환율 고정 (1달러 = 1400원)
+FX_RATE = 1400              # 고정 환율 (가상거래 시뮬레이션 - 환율 변동으로 인한 수익률 혼동 방지)
+
+TICKER_NAMES_CACHE = "ticker_names.json"
 
 def is_korean(ticker):
     return ticker.endswith('.KS') or ticker.endswith('.KQ')
+
+def get_stock_name(ticker):
+    """종목 이름 조회 (한국=한국어, 미국=영어, 캐시 사용)"""
+    cache = {}
+    if os.path.exists(TICKER_NAMES_CACHE):
+        try:
+            with open(TICKER_NAMES_CACHE, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+        except Exception:
+            pass
+
+    if ticker in cache:
+        return cache[ticker]
+
+    name = ticker
+    if is_korean(ticker):
+        # 한국 주식: FinanceDataReader에서 한국어 이름 조회 + 전체 캐싱
+        try:
+            import FinanceDataReader as fdr
+            code = ticker.replace('.KS', '').replace('.KQ', '')
+            df_krx = fdr.StockListing('KRX')
+            match = df_krx[df_krx['Code'] == code]
+            if not match.empty:
+                name = match.iloc[0]['Name']
+            # KRX 전체 종목을 한번에 캐시 (다음부터 즉시 조회)
+            for _, row in df_krx.iterrows():
+                for suffix in ['.KS', '.KQ']:
+                    key = f"{row['Code']}{suffix}"
+                    if key not in cache:
+                        cache[key] = row['Name']
+        except Exception:
+            pass
+    else:
+        # 미국 주식: yfinance에서 영어 이름 조회
+        try:
+            info = yf.Ticker(ticker).info
+            name = info.get('shortName', info.get('longName', ticker))
+        except Exception:
+            pass
+
+    # 캐시에 저장
+    cache[ticker] = name
+    try:
+        with open(TICKER_NAMES_CACHE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+    return name
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -39,12 +91,6 @@ def init_db():
                     fee_krw REAL,
                     slippage_krw REAL
                  )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS pending (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    action TEXT,
-                    ticker TEXT,
-                    timestamp TEXT
-                 )''')
     
     # 초기 계좌 생성
     c.execute('SELECT cash FROM account WHERE id=1')
@@ -68,11 +114,13 @@ def get_market_fee(ticker):
     return 0.00115 if is_korean(ticker) else 0.0010
 
 def do_buy(ticker):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
+    ticker = ticker.upper()  # 티커 자동 대문자 변환
     
     price = get_current_price(ticker)
     if price is None: return False
+    
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
     
     price_krw = price if is_korean(ticker) else price * FX_RATE
     
@@ -84,6 +132,7 @@ def do_buy(ticker):
     
     if cash < target_amount:
         print(f"[실패] 현금이 부족합니다. 현재 잔고: {cash:,.0f}원")
+        conn.close()
         return False
         
     # 슬리피지 0.2% (불리하게 매수)
@@ -93,6 +142,7 @@ def do_buy(ticker):
     shares = int(target_amount // execution_price_krw)
     if shares == 0:
         print(f"[실패] 1주도 살 수 없는 가격입니다. 1주 체결가: {execution_price_krw:,.0f}원")
+        conn.close()
         return False
         
     fee_rate = get_market_fee(ticker)
@@ -102,6 +152,7 @@ def do_buy(ticker):
     total_cost = trade_amount + fee
     if cash < total_cost:
         print("[실패] 수수료를 포함하면 잔고가 부족합니다.")
+        conn.close()
         return False
         
     # 포트폴리오 업데이트
@@ -137,6 +188,11 @@ def do_buy(ticker):
     return True
 
 def do_sell(ticker):
+    ticker = ticker.upper()  # 티커 자동 대문자 변환
+    
+    price = get_current_price(ticker)
+    if price is None: return False
+    
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     
@@ -144,13 +200,11 @@ def do_sell(ticker):
     row = c.fetchone()
     if not row or row[0] == 0:
         print(f"[실패] 현재 보유하고 있는 {ticker} 주식이 없습니다.")
+        conn.close()
         return False
         
     shares = row[0]
     avg_price_krw = row[1]
-    
-    price = get_current_price(ticker)
-    if price is None: return False
     
     price_krw = price if is_korean(ticker) else price * FX_RATE
     
@@ -201,26 +255,7 @@ def show_status():
         
     cash = row[0]
     
-    print("\n📊 주요 경제 및 유동성 지표\n")
-    print("🍎 물가 (CPI / PCE): 3.3% / 3.5%\n")
-    print("👷 고용/경기 (NFP / 실업률 / PMI): 178K / 4.3% / 52.7\n")
-    print("💵 기준 금리: Fed 3.50~3.75%\n")
-    print("💧 유동성 NFCI: -0.52\n")
-    print("🇺🇸 미 국채 10년물 금리 (TNX) : 4.572%\n")
-    print("📌 [앞으로의 금리의 전망]")
-    print("과거 데이터를 분석해보면, 금리 인하 사이클 직전에는 시장이 경기 둔화를 선반영하여 10년물 국채 금리가 기준금리보다 크게 낮아지는 '장단기 금리 역전(음의 스프레드, 보통 -0.5% ~ -1.5%)' 현상이 뚜렷하게 나타납니다.")
-    print("반대로 금리 인상 사이클 초기나 견조한 경기 확장 국면에서는 장기물 금리가 기준금리보다 높은 '정상적인 우상향 곡선(양의 스프레드, 보통 +0.5% ~ +2.0%)'을 보입니다.\n")
-    print("현재 상황은 미 10년물 금리(4.572%)가 기준금리(3.50~3.75%, 중간값 3.625%)보다 약 +0.95%p 높은 정상적인 양의 스프레드를 기록하고 있습니다.")
-    print("여기에 FOMC가 금리 결정 시 가장 중요하게 보는 핵심 지표들을 종합해보면:")
-    print(" 1) 물가 (CPI 3.3%, PCE 3.5%): 연준의 목표치인 2%를 여전히 크게 상회하며 끈적하게(Sticky) 유지되고 있습니다.")
-    print(" 2) 고용 및 경기 (NFP 178K, 실업률 4.3%, PMI 52.7): 고용 시장이 안정적으로 뒷받침되고 있으며, PMI 지수도 기준선(50)을 넘는 견조한 확장 국면입니다.")
-    print(" 3) 유동성 (NFCI -0.52): 0 미만의 마이너스 수치로 금융환경이 여전히 완화적(Loose)임을 의미하여, 긴축의 충격이 시장에 크지 않음을 시사합니다.\n")
-    print("▶ 결론적으로 현재의 +0.95%p 스프레드와 견조한 펀더멘털, 목표치를 웃도는 물가를 고려할 때, 조기 '금리 인하' 확률은 매우 희박합니다.")
-    print("오히려 현재의 금리를 장기간 동결(Higher for Longer)하거나, 물가 재반등 시 추가 인상 카드를 만지작거릴 확률이 더 높은 '금리 동결/인상 우위'의 국면으로 분석됩니다.")
-    print("-------------------------------------")
-    print("📊 안티그레비티 통합 전략 리포트 (6/10)")
-    print("-------------------------------------")
-    print(f" 💰 현재 가상계좌 현금: {cash:,.0f} 원")
+    print(f"\n💰 현재 가상계좌 현금: {cash:,.0f} 원")
     print("=====================================")
     
     c.execute('SELECT ticker, shares, avg_price_krw FROM portfolio')
@@ -241,7 +276,8 @@ def show_status():
             profit_rate = ((eval_amount - buy_amount) / buy_amount) * 100
             
             total_eval += eval_amount
-            print(f" * {ticker} | {shares}주 | 매수단가: {avg_price_krw:,.0f}원 | 현재가: {price_krw:,.0f}원 | 수익률: {profit_rate:+.2f}% | 평가금액: {eval_amount:,.0f}원")
+            name = get_stock_name(ticker)
+            print(f" * {ticker}({name}) | {shares}주 | 매수단가: {avg_price_krw:,.0f}원 | 현재가: {price_krw:,.0f}원 | 수익률: {profit_rate:+.2f}% | 평가금액: {eval_amount:,.0f}원")
             
     total_profit_rate = ((total_eval - INITIAL_SEED) / INITIAL_SEED) * 100
     print(f"\n총 자산 평가(현금+주식): {total_eval:,.0f} 원 | 총 수익률: {total_profit_rate:+.2f}%")
@@ -249,36 +285,54 @@ def show_status():
     c.execute('SELECT ticker FROM portfolio')
     held_tickers = set(row[0] for row in c.fetchall())
 
+    # ── 현재 보유 종목의 매수 이력 (같은 날 같은 종목은 합산) ──
+    c.execute('SELECT timestamp, action, ticker, shares, price_krw, amount_krw FROM history ORDER BY id DESC')
+    hist_rows = c.fetchall()
+    
+    # 날짜+종목 기준으로 합산
+    from collections import OrderedDict
+    daily_buys = OrderedDict()
+    for ts, action, tkr, shrs, prc, amt in hist_rows:
+        if tkr in held_tickers and action == "BUY":
+            date_key = ts.split(" ")[0]  # "2026-06-01 23:18:09" → "2026-06-01"
+            group_key = (date_key, tkr)
+            if group_key not in daily_buys:
+                daily_buys[group_key] = {"shares": 0, "total_amount": 0}
+            daily_buys[group_key]["shares"] += shrs
+            daily_buys[group_key]["total_amount"] += amt
+
+    print("\n[보유 종목 매수 이력]")
+    if daily_buys:
+        for (date, tkr), data in daily_buys.items():
+            avg_price = data["total_amount"] / data["shares"] if data["shares"] > 0 else 0
+            name = get_stock_name(tkr)
+            print(f" * {date} | 매수 | {tkr}({name}) | {data['shares']}주 | 평균단가: {avg_price:,.0f}원 | 총액: {data['total_amount']:,.0f}원")
+    else:
+        print(" * 매수 이력이 없습니다.")
+
+    # ── 매도 실현 손익 ──
     c.execute('SELECT ticker, action, amount_krw FROM history')
     ticker_pl = {}
     for tkr, action, amt in c.fetchall():
         if tkr not in ticker_pl:
             ticker_pl[tkr] = {'BUY': 0, 'SELL': 0}
         ticker_pl[tkr][action] += amt
-    
-    profitable_tickers = set()
-    for tkr, data in ticker_pl.items():
-        if data['SELL'] > 0 and data['SELL'] > data['BUY']:
-            profitable_tickers.add(tkr)
 
-    target_tickers = held_tickers.union(profitable_tickers)
+    sold_tickers = {tkr: data for tkr, data in ticker_pl.items() if data['SELL'] > 0 and tkr not in held_tickers}
 
-    c.execute('SELECT timestamp, action, ticker, shares, price_krw, amount_krw FROM history ORDER BY id DESC')
-    hist_rows = c.fetchall()
-    
-    print("\n[최근 거래 및 구매 이력 (보유 종목 & 수익 실현 종목)]")
-    count = 0
-    for row in hist_rows:
-        ts, action, tkr, shrs, prc, amt = row
-        if tkr in target_tickers:
-            act_str = "매수" if action == "BUY" else "매도"
-            print(f" * {ts} | {act_str} | {tkr} | {shrs}주 | 단가: {prc:,.0f}원 | 총액: {amt:,.0f}원")
-            count += 1
-            if count >= 20:
-                break
-                
-    if count == 0:
-        print(" * 조건(현재 보유 중이거나 과거 수익 낸 종목)에 맞는 이력이 없습니다.")
+    if sold_tickers:
+        print("\n[매도 실현 손익]")
+        total_realized = 0
+        for tkr, data in sold_tickers.items():
+            profit = data['SELL'] - data['BUY']
+            profit_rate = (profit / data['BUY']) * 100 if data['BUY'] > 0 else 0
+            emoji = "🟢" if profit >= 0 else "🔴"
+            total_realized += profit
+            name = get_stock_name(tkr)
+            print(f" {emoji} {tkr}({name}) | 매수총액: {data['BUY']:,.0f}원 → 매도총액: {data['SELL']:,.0f}원 | 실현손익: {profit:+,.0f}원 ({profit_rate:+.2f}%)")
+        print(f"   ─────────────────────────────────")
+        emoji_total = "🟢" if total_realized >= 0 else "🔴"
+        print(f" {emoji_total} 총 실현 손익: {total_realized:+,.0f}원")
 
     conn.close()
 
