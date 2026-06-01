@@ -44,11 +44,15 @@ except Exception as e:
     DF_KRX_DESC = pd.DataFrame()
 
 try:
-    DF_NASDAQ = fdr.StockListing('NASDAQ')
-    print(f"  > NASDAQ 데이터 {len(DF_NASDAQ)}개 종목 로드 완료.")
+    df_nasdaq = fdr.StockListing('NASDAQ')
+    df_nyse = fdr.StockListing('NYSE')
+    df_amex = fdr.StockListing('AMEX')
+    DF_US = pd.concat([df_nasdaq, df_nyse, df_amex], ignore_index=True)
+    DF_US.drop_duplicates(subset=['Symbol'], inplace=True)
+    print(f"  > 미국 주식 데이터 (NASDAQ, NYSE, AMEX 통합) {len(DF_US)}개 종목 로드 완료.")
 except Exception as e:
-    logger.warning(f"NASDAQ 데이터 로드 실패: {e}")
-    DF_NASDAQ = pd.DataFrame()
+    logger.warning(f"미국 주식 목록 로드 실패: {e}")
+    DF_US = pd.DataFrame()
 
 # KRX merge (한 번만 수행)
 try:
@@ -265,6 +269,10 @@ def analyze_stocks(tickers, ticker_to_name):
         try:
             name = ticker_to_name.get(ticker, "")
             display_name = f"{name}({ticker})" if name else ticker
+            
+            # yfinance 에러(MultiIndex)를 유발하는 우선주/특수종목(띄어쓰기 포함) 제외
+            if ' ' in ticker:
+                continue
 
             # 진행상황 표시: 퍼센트 + 현재 스캔 중인 종목
             pct = (idx + 1) / total * 100
@@ -280,6 +288,24 @@ def analyze_stocks(tickers, ticker_to_name):
             import time; time.sleep(0.05) # Yahoo 차단 방지 (Rate limit 완화)
             df = yf.download(ticker, period="10y", interval="1d", progress=False)
             if df.empty or len(df) < 60: continue
+            
+            # 유동성 필터: 거래량이 거의 없어 캔들이 '점'으로 찍히는 잡주, SPAC 등 제외
+            is_krx = ticker.endswith('.KS') or ticker.endswith('.KQ')
+            try:
+                recent_20d = df.tail(20)
+                avg_vol = recent_20d['Volume'].mean()
+                avg_price = recent_20d['Close'].mean()
+                if isinstance(avg_vol, pd.Series): avg_vol = avg_vol.item()
+                if isinstance(avg_price, pd.Series): avg_price = avg_price.item()
+                
+                avg_amount = avg_vol * avg_price
+                min_vol = 50000
+                min_amount = 1_000_000_000 if is_krx else 1_000_000 # KRX: 10억, US: $1M
+                
+                if avg_vol < min_vol or avg_amount < min_amount:
+                    continue
+            except:
+                pass
 
             # yfinance MultiIndex 평탄화
             if isinstance(df.columns, pd.MultiIndex):
@@ -373,50 +399,75 @@ def analyze_stocks(tickers, ticker_to_name):
                     df_m = df.resample('M').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
 
                 if len(df_m) >= 6:
-                    # 1. 2년 고점 대비 하락장(바닥권) 확인 로직
+                    # 1. 2년 고점 대비 크게 하락한 종목인지 확인 (단순 눌림목 제외)
                     lookback = min(24, len(df_m))
-                    if lookback >= 3:
-                        historical_24m = df_m.iloc[-lookback:]
+                    historical_24m = df_m.iloc[-lookback:]
+                    
+                    # 최근 턴어라운드 구간(최대 3개월)에 발생한 급등을 과거 '전고점'으로 착각하지 않도록 제외
+                    if len(historical_24m) > 3:
+                        max_high_24m = historical_24m.iloc[:-3]['High'].max()
+                    else:
                         max_high_24m = historical_24m['High'].max()
-                        min_low_24m = historical_24m['Low'].min()
                         
-                        # 고점 대비 충분히 하락했는지 (최소 30~40% 이상 하락, max >= min * 1.5)
-                        if max_high_24m >= min_low_24m * 1.5:
+                    min_low_24m = historical_24m['Low'].min()
+                    
+                    if max_high_24m >= min_low_24m * 1.5:
+                        def get_val(val):
+                            return val.item() if isinstance(val, pd.Series) else val
                             
-                            def check_pattern(c_2, c_1, c_0):
-                                o2, c2 = get_val(c_2['Open']), get_val(c_2['Close'])
-                                o1, c1 = get_val(c_1['Open']), get_val(c_1['Close'])
-                                o0, c0 = get_val(c_0['Open']), get_val(c_0['Close'])
-                                v1, v0 = get_val(c_1['Volume']), get_val(c_0['Volume'])
-                                
-                                pct2 = abs(c2 - o2) / o2
-                                is_t2_valid = (c2 < o2) or (pct2 <= 0.05)
-                                
-                                pct1 = abs(c1 - o1) / o1
-                                is_t1_exhausted = (c1 < o1) or (pct1 <= 0.03)
-                                
-                                is_t_green = c0 > o0
-                                is_t_volume_up = v0 > v1
-                                return is_t2_valid and is_t1_exhausted and is_t_green and is_t_volume_up
-
-                            pattern_matched = False
+                        def check_pattern(c_2, c_1, c_0):
+                            o2, c2 = get_val(c_2['Open']), get_val(c_2['Close'])
+                            o1, c1 = get_val(c_1['Open']), get_val(c_1['Close'])
+                            o0, c0 = get_val(c_0['Open']), get_val(c_0['Close'])
+                            v1, v0 = get_val(c_1['Volume']), get_val(c_0['Volume'])
                             
-                            # Case 1: 이번 달에 첫 양봉 돌파 (T-2, T-1, T)
-                            if check_pattern(df_m.iloc[-3], df_m.iloc[-2], df_m.iloc[-1]):
-                                pattern_matched = True
-                            # Case 2: 지난 달에 첫 양봉 돌파 (T-3, T-2, T-1) + 이번달 가격 유지 (연속 상승)
-                            elif len(df_m) >= 4 and check_pattern(df_m.iloc[-4], df_m.iloc[-3], df_m.iloc[-2]):
-                                t_o, t_c = get_val(df_m.iloc[-1]['Open']), get_val(df_m.iloc[-1]['Close'])
-                                if t_c >= t_o * 0.95: # 시가 대비 5% 이상 하락하지 않고 버텨주는 중이면 유효
-                                    pattern_matched = True
-                                    
-                            if pattern_matched:
-                                # 3. 현재 위치가 2년 변동폭의 하위 40% 이내의 바닥권인가? (너무 높은 자리에서 뜨는 건 제외)
+                            pct2 = abs(c2 - o2) / o2
+                            is_t2_valid = (c2 < o2) or (pct2 <= 0.05)
+                            
+                            pct1 = abs(c1 - o1) / o1
+                            is_t1_exhausted = (c1 < o1) or (pct1 <= 0.03)
+                            
+                            is_t_green = c0 > o0
+                            is_t_volume_up = v0 > v1
+                            return is_t2_valid and is_t1_exhausted and is_t_green and is_t_volume_up
+                            
+                        def evaluate_window(c_2, c_1, c_0):
+                            if check_pattern(c_2, c_1, c_0):
+                                # 턴어라운드 시작점(T-2, T-1)이 과거 2년 변동폭의 하위 50% 이내 바닥권이었는지 확인
                                 range_24m = max_high_24m - min_low_24m
-                                bottom_threshold = min_low_24m + (range_24m * 0.40)
+                                bottom_threshold = min_low_24m + (range_24m * 0.50)
+                                base_low = min(get_val(c_2['Close']), get_val(c_1['Close']))
+                                if base_low <= bottom_threshold:
+                                    return True
+                            return False
+
+                        pattern_matched = False
+                        
+                        # Case 1: 이번 달에 턴어라운드 (T-2, T-1, T)
+                        if len(df_m) >= 3 and evaluate_window(df_m.iloc[-3], df_m.iloc[-2], df_m.iloc[-1]):
+                            pattern_matched = True
+                            
+                        # Case 2: 지난 달에 턴어라운드 (T-3, T-2, T-1)
+                        elif len(df_m) >= 4 and evaluate_window(df_m.iloc[-4], df_m.iloc[-3], df_m.iloc[-2]):
+                            # 턴어라운드 이후(이번 달) 차트가 깨지지 않았는지 확인 (돌파 캔들 몸통 절반 이상 유지)
+                            c0_o, c0_c = get_val(df_m.iloc[-2]['Open']), get_val(df_m.iloc[-2]['Close'])
+                            midpoint = c0_o + (c0_c - c0_o) * 0.5
+                            t_c = get_val(df_m.iloc[-1]['Close'])
+                            if t_c >= midpoint:
+                                pattern_matched = True
                                 
-                                if get_val(df_m.iloc[-1]['Close']) <= bottom_threshold:
-                                    signals.append("monthly_pattern")
+                        # Case 3: 지지난 달에 턴어라운드 (T-4, T-3, T-2)
+                        elif len(df_m) >= 5 and evaluate_window(df_m.iloc[-5], df_m.iloc[-4], df_m.iloc[-3]):
+                            # 턴어라운드 이후(지난 달, 이번 달) 차트가 깨지지 않았는지 확인
+                            c0_o, c0_c = get_val(df_m.iloc[-3]['Open']), get_val(df_m.iloc[-3]['Close'])
+                            midpoint = c0_o + (c0_c - c0_o) * 0.5
+                            t1_c = get_val(df_m.iloc[-2]['Close'])
+                            t_c = get_val(df_m.iloc[-1]['Close'])
+                            if t1_c >= midpoint and t_c >= midpoint:
+                                pattern_matched = True
+                                
+                        if pattern_matched:
+                            signals.append("monthly_pattern")
             except Exception as e:
                 logger.debug(f"{ticker} 월봉 분석 실패: {e}")
 
@@ -556,11 +607,11 @@ def get_market_tickers(theme_name, market_type="ALL"):
         except Exception as e:
             print(f"  [오류] KRX 데이터 처리 실패: {e}")
 
-    # 2. 미국 주식 (NASDAQ) — 전역 캐시 사용
-    if market_type in ["ALL", "NASDAQ"] and not DF_NASDAQ.empty:
+    # 2. 미국 주식 (NASDAQ, NYSE, AMEX) — 전역 캐시 사용
+    if market_type in ["ALL", "US", "NASDAQ"] and not DF_US.empty:
         print(f"[{theme_name}] 미국 시장 종목 선정 중...")
         try:
-            nasdaq = DF_NASDAQ.copy()
+            nasdaq = DF_US.copy()
             nasdaq_kws = keywords.get("nasdaq", [])
 
             if nasdaq_kws and 'Industry' in nasdaq.columns:
