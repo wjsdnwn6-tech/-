@@ -1,0 +1,41 @@
+=== Sector ===
+SPAC(소속부없음)
+관리종목(소속부없음)
+기술성장기업부
+벤처기업부
+외국기업(소속부없음)
+우량기업부
+일반기업부
+중견기업부
+투자주의환기종목(소속부없음)
+
+=== Industry (healthcare keywords test) ===
+제약: 0 matches
+바이오: 0 matches
+생명공학: 0 matches
+의료기기: 0 matches
+헬스케어: 0 matches
+약품: 107 matches
+  samples: ['의약품 제조업', '의약품 제조업', '의약품 제조업']
+의료: 109 matches
+  samples: ['의료용품 및 기타 의약 관련제품 제조업', '의료용품 및 기타 의약 관련제품 제조업', '의료용품 및 기타 의약 관련제품 제조업']
+
+=== Sector healthcare keywords test ===
+제약 in Sector: 0 matches
+바이오 in Sector: 0 matches
+생명공학 in Sector: 0 matches
+의료기기 in Sector: 0 matches
+헬스케어 in Sector: 0 matches
+약품 in Sector: 0 matches
+의료 in Sector: 0 matches
+
+=== All unique Sector values ===
+  "SPAC(소속부없음)"
+  "관리종목(소속부없음)"
+  "기술성장기업부"
+  "벤처기업부"
+  "외국기업(소속부없음)"
+  "우량기업부"
+  "일반기업부"
+  "중견기업부"
+  "투자주의환기종목(소속부없음)"

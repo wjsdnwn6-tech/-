@@ -11,6 +11,7 @@ import datetime
 import os
 import argparse
 import logging
+import pickle
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -254,11 +255,11 @@ def calculate_ichimoku(df):
 
     return df
 
-def analyze_stocks(tickers, ticker_to_name):
+def analyze_stocks(tickers, ticker_to_name, cache):
     results = {
         "monthly_pattern": [],
-        "top30_pattern_match": [],
-        "top30_shape_match": [],
+        "top70_pattern_match": [],
+        "top70_shape_match": [],
         "cloud_twist": [],
         "cloud_twist_1w": [],
         "ma200_support_breakout": [],
@@ -279,19 +280,8 @@ def analyze_stocks(tickers, ticker_to_name):
     if total == 0:
         return results
 
-    # ── 핵심 속도 개선: 일괄 다운로드 (개별 호출 대비 4~6배 빠름) ──
-    print(f"    → {total}개 종목 데이터 일괄 다운로드 중...")
-    try:
-        all_data = yf.download(valid_tickers, period="10y", interval="1d", progress=False, threads=True)
-    except Exception as e:
-        logger.warning(f"일괄 다운로드 실패: {e}")
-        return results
-
-    if all_data.empty:
-        return results
-
-    is_multi = isinstance(all_data.columns, pd.MultiIndex)
-    print(f"    → 다운로드 완료. 분석을 시작합니다...")
+    # ── 캐시에서 데이터 조회 (네트워크 호출 없음) ──
+    print(f"    → {total}개 종목 캐시 데이터로 분석을 시작합니다...")
 
     for idx, ticker in enumerate(valid_tickers):
         try:
@@ -307,29 +297,18 @@ def analyze_stocks(tickers, ticker_to_name):
             sys.stdout.write(f"{progress_msg:<80}")
             sys.stdout.flush()
 
-            # 일괄 다운로드 결과에서 개별 종목 데이터 추출
-            if is_multi:
-                try:
-                    available = all_data.columns.get_level_values(1).unique()
-                    if ticker not in available:
-                        continue
-                    df = pd.DataFrame({
-                        col: all_data[col][ticker]
-                        for col in ['Open', 'High', 'Low', 'Close', 'Volume']
-                        if col in all_data.columns.get_level_values(0)
-                    }).dropna()
-                except (KeyError, TypeError, ValueError):
-                    continue
-            else:
-                df = all_data.copy()
-                if isinstance(df.columns, pd.MultiIndex):
-                    df.columns = df.columns.droplevel(1)
+            # 캐시에서 개별 종목 데이터 추출
+            df = cache["ohlcv"].get(ticker)
+            if df is None:
+                continue
+            df = df.copy()
 
             if df.empty or len(df) < 60:
                 continue
 
             # 유동성 필터: 거래량이 거의 없는 잡주, SPAC 등 제외
             is_krx = ticker.endswith('.KS') or ticker.endswith('.KQ')
+            avg_amount = 0
             try:
                 recent_20d = df.tail(20)
                 avg_vol = recent_20d['Volume'].mean()
@@ -348,25 +327,25 @@ def analyze_stocks(tickers, ticker_to_name):
 
             df = calculate_ichimoku(df)
 
-            # 시가총액 가져오기 (한국 종목은 KRX 캐시에서, 미국은 fast_info에서)
+            # 시가총액 가져오기 (한국: KRX 캐시, 미국: 데이터 캐시)
             pure_code = ticker.split('.')[0] if is_krx else ticker
-            market_cap = KRX_CAP_MAP.get(pure_code, 0) if is_krx else 0
-            if market_cap == 0:
-                try:
-                    t_obj = yf.Ticker(ticker)
-                    market_cap = getattr(t_obj.fast_info, 'market_cap', t_obj.fast_info.get('marketCap', 0))
-                    # t_obj.info 는 속도가 매우 느리고 Yahoo 차단(Rate Limit)의 주 원인이므로 제거
-                    if market_cap is None or pd.isna(market_cap):
-                        market_cap = 0
-                except Exception as e:
-                    logger.debug(f"{ticker} 시가총액 조회 실패: {e}")
+            market_cap = KRX_CAP_MAP.get(pure_code, 0) if is_krx else cache.get("market_caps", {}).get(ticker, 0)
 
-            # ── 시가총액 필터 (0인 경우 제외, 미국 주식은 한화 5000억 이상) ──
-            if market_cap <= 0:
-                continue
+            # ── 시가총액 필터 ──
+            # 미국 주식: yfinance rate limiting으로 시가총액=0인 경우가 빈번하므로,
+            # 시가총액이 0이면 일평균 거래대금으로 대체 판단 (거래대금 $5M 이상 = 대형주급)
             US_MIN_MARKET_CAP = 714_000_000  # 약 1조원 ($714M ≈ 1조원 @1400원/달러)
-            if not is_krx and market_cap < US_MIN_MARKET_CAP:
-                continue
+            US_MIN_AVG_AMOUNT_FALLBACK = 5_000_000  # 시가총액 누락 시 대체 기준: 일평균 $5M
+            if is_krx:
+                if market_cap <= 0:
+                    continue
+            else:
+                if market_cap > 0 and market_cap < US_MIN_MARKET_CAP:
+                    continue
+                if market_cap <= 0:
+                    # 시가총액 조회 실패 → 거래대금으로 대체 판단
+                    if avg_amount < US_MIN_AVG_AMOUNT_FALLBACK:
+                        continue
 
             signals = []
 
@@ -421,9 +400,9 @@ def analyze_stocks(tickers, ticker_to_name):
                 if current_feat:
                     cond_match, shape_match = is_pattern_matched(current_feat, TOP70_TEMPLATES)
                     if cond_match:
-                        signals.append("top30_pattern_match")
+                        signals.append("top70_pattern_match")
                     if shape_match:
-                        signals.append("top30_shape_match")
+                        signals.append("top70_shape_match")
 
             # 4. 월봉: 대세 하락 후 바닥 다지기(지지) & 강한 장대양봉 돌파(상승) 패턴
             try:
@@ -483,21 +462,17 @@ def analyze_stocks(tickers, ticker_to_name):
                             
                         # Case 2: 지난 달에 턴어라운드 (T-3, T-2, T-1)
                         elif len(df_m) >= 4 and evaluate_window(df_m.iloc[-4], df_m.iloc[-3], df_m.iloc[-2]):
-                            # 턴어라운드 이후(이번 달) 차트가 깨지지 않았는지 확인 (돌파 캔들 몸통 절반 이상 유지)
-                            c0_o, c0_c = get_val(df_m.iloc[-2]['Open']), get_val(df_m.iloc[-2]['Close'])
-                            midpoint = c0_o + (c0_c - c0_o) * 0.5
-                            t_c = get_val(df_m.iloc[-1]['Close'])
-                            if t_c >= midpoint:
-                                pattern_matched = True
+                            # 턴어라운드가 지난달 완성 → 이번 달은 진행 중(불완전)이므로
+                            # 이번 달 종가로 판단하지 않고, 턴어라운드 자체가 확정된 것으로 인정
+                            pattern_matched = True
                                 
                         # Case 3: 지지난 달에 턴어라운드 (T-4, T-3, T-2)
                         elif len(df_m) >= 5 and evaluate_window(df_m.iloc[-5], df_m.iloc[-4], df_m.iloc[-3]):
-                            # 턴어라운드 이후(지난 달, 이번 달) 차트가 깨지지 않았는지 확인
-                            c0_o, c0_c = get_val(df_m.iloc[-3]['Open']), get_val(df_m.iloc[-3]['Close'])
-                            midpoint = c0_o + (c0_c - c0_o) * 0.5
+                            # 턴어라운드 이후 지난 달(완성된 월봉)이 돌파 캔들 시가 이상 유지했는지만 확인
+                            # 이번 달(진행 중)은 불완전하므로 판단에서 제외
+                            c0_o = get_val(df_m.iloc[-3]['Open'])
                             t1_c = get_val(df_m.iloc[-2]['Close'])
-                            t_c = get_val(df_m.iloc[-1]['Close'])
-                            if t1_c >= midpoint and t_c >= midpoint:
+                            if t1_c >= c0_o:
                                 pattern_matched = True
                                 
                         if pattern_matched:
@@ -538,48 +513,133 @@ def analyze_stocks(tickers, ticker_to_name):
 
 THEMES = {
     "IT (소프트웨어, 하드웨어, 반도체, IT 기기 및 서비스)": {
-        "krx": ["소프트웨어", "IT", "반도체", "전자", "컴퓨터", "정보기술", "하드웨어"],
-        "nasdaq": ["Software", "Hardware", "Semiconductor", "IT", "Information Technology", "Electronic", "소프트웨어", "반도체", "전자", "컴퓨터", "정보기술", "하드웨어"]
+        "krx": ["소프트웨어", "IT", "반도체", "전자", "컴퓨터", "정보기술", "하드웨어",
+                "전지", "이차전지", "영상", "음향", "측정", "정밀기기", "케이블", "절연선",
+                "마그네틱", "광학", "전구", "조명", "정보 서비스"],
+        "nasdaq": ["Software", "Hardware", "Semiconductor", "IT", "Information Technology", "Electronic",
+                   # 기존 한국어 키워드
+                   "소프트웨어", "반도체", "전자", "컴퓨터", "정보기술", "하드웨어",
+                   # FDR 한국어 Industry 매핑 (IONQ, QUBT 등 누락 방지)
+                   "IT 서비스 및 컨설팅", "반도체 장비 및 테스트", "컴퓨터 하드웨어",
+                   "전자 장비 및 부품", "전기 부품 및 장비", "통합 하드웨어 및 소프트웨어",
+                   "전화 및 소형 장치", "사무기기", "전문 정보 서비스",
+                   "통신 및 네트워킹", "블록 체인 및 암호화폐", "핀테크", "기타 핀테크 인프라"]
     },
     "커뮤니케이션 (통신, 미디어, 엔터테인먼트, 인터랙티브 미디어 및 서비스)": {
-        "krx": ["통신", "미디어", "엔터테인먼트", "방송", "영화", "인터넷", "게임"],
-        "nasdaq": ["Communication", "Media", "Entertainment", "Interactive Media", "Telecom", "Broadcasting", "통신", "미디어", "엔터테인먼트", "방송", "영화", "인터넷", "게임"]
+        "krx": ["통신", "미디어", "엔터테인먼트", "방송", "영화", "인터넷", "게임",
+                "오디오", "출판", "녹음", "광고", "창작", "예술"],
+        "nasdaq": ["Communication", "Media", "Entertainment", "Interactive Media", "Telecom", "Broadcasting",
+                   "통신", "미디어", "엔터테인먼트", "방송", "영화", "인터넷", "게임",
+                   # FDR 한국어 Industry 매핑
+                   "온라인 서비스", "엔터테인먼트 제작", "광고 및 마케팅",
+                   "소비자 출판", "무선 통신 서비스", "통합 통신 서비스"]
     },
     "임의소비재 (자동차 및 부품, 내구소비재, 의류, 레저, 호텔/레스토랑)": {
-        "krx": ["자동차", "내구소비재", "의류", "레저", "호텔", "레스토랑", "여행", "소비재"],
-        "nasdaq": ["Automobile", "Auto Parts", "Consumer Discretionary", "Apparel", "Leisure", "Hotel", "Restaurant", "자동차", "내구소비재", "의류", "레저", "호텔", "레스토랑", "여행", "소비재"]
+        "krx": ["자동차", "내구소비재", "의류", "레저", "호텔", "레스토랑", "여행", "소비재",
+                "봉제", "의복", "가구", "가죽", "가방", "신발", "악기", "숙박", "오락",
+                "음식점", "교습", "학원", "교육"],
+        "nasdaq": ["Automobile", "Auto Parts", "Consumer Discretionary", "Apparel", "Leisure", "Hotel", "Restaurant",
+                   "자동차", "내구소비재", "의류", "레저", "호텔", "레스토랑", "여행", "소비재",
+                   # FDR 한국어 Industry 매핑
+                   "자동차 및 트럭 제조", "자동차, 트럭 및 오토바이 부품",
+                   "자동차 차량, 부품 및 서비스 소매", "의류 및 액세서리", "의류 및 액세서리 소매",
+                   "가정용 가구", "가정용 가구 소매", "가정용 전자 제품",
+                   "레스토랑 및 바", "호텔, 모텔 및 크루즈 라인",
+                   "여가 및 오락시설", "카지노 및 도박", "오락용 제품",
+                   "장난감 및 어린이 제품", "제화", "직물 및 가죽제품",
+                   "기타 교육 서비스 제공", "초, 중, 고등 교육기관", "전문 및 비즈니스 교육",
+                   "기타 전문 소매", "백화점", "할인점",
+                   "주택 건설", "주택 개조 제품 및 서비스 소매",
+                   "컴퓨터 및 전자 제품 소매", "지상 및 해상 여객 운송", "항공사"]
     },
     "필수소비재 (식음료, 유통, 가정용품, 개인용품, 담배)": {
-        "krx": ["식음료", "유통", "가정용품", "개인용품", "담배", "생활용품", "화장품"],
-        "nasdaq": ["Consumer Staples", "Food", "Beverage", "Retail", "Household", "Personal", "Tobacco", "식음료", "유통", "가정용품", "개인용품", "담배", "생활용품", "화장품"]
+        "krx": ["식음료", "유통", "가정용품", "개인용품", "담배", "생활용품", "화장품",
+                "식품", "곡물", "전분", "음료", "도축", "육류", "수산물", "사료",
+                "소매", "낙농", "작물", "가정용 기기"],
+        "nasdaq": ["Consumer Staples", "Food", "Beverage", "Retail", "Household", "Personal", "Tobacco",
+                   "식음료", "유통", "가정용품", "개인용품", "담배", "생활용품", "화장품",
+                   # FDR 한국어 Industry 매핑
+                   "식품 가공", "식품 소매 및 유통", "무알콜 음료", "양조업", "증류주 및 포도주",
+                   "가전제품, 도구 및 가정 용품", "가정용 제품", "개인 생활 필수 용품",
+                   "개인 서비스", "소비재 대기업", "어업 및 농업", "농화학제",
+                   "의약품 소매", "비즈니스 지원 용품", "타이어 및 고무 제품"]
     },
     "헬스케어 (제약, 생명공학(바이오), 의료기기, 헬스케어 서비스 및 장비)": {
-        "krx": ["제약", "바이오", "생명공학", "의료기기", "헬스케어"],
-        "nasdaq": ["Healthcare", "Pharmaceutical", "Biotechnology", "Medical", "Health Care", "제약", "바이오", "생명공학", "의료기기", "헬스케어"]
+        "krx": ["제약", "바이오", "생명공학", "의료기기", "헬스케어", "약품", "의료", "의약",
+                "생물학", "연구개발"],
+        "nasdaq": ["Healthcare", "Pharmaceutical", "Biotechnology", "Medical", "Health Care",
+                   "제약", "바이오", "생명공학", "의료기기", "헬스케어",
+                   # FDR 한국어 Industry 매핑
+                   "생명 공학 및 의학 연구", "의료 장비, 물품 및 유통",
+                   "첨단 의료 장비 및 기술", "의료 시설 및 서비스", "의료 관리"]
     },
     "금융 (은행, 보험, 다각화된 금융 서비스, 소비자 금융)": {
-        "krx": ["은행", "보험", "금융", "증권", "지주"],
-        "nasdaq": ["Financial", "Bank", "Insurance", "Consumer Finance", "Capital Markets", "은행", "보험", "금융", "증권", "지주"]
+        "krx": ["은행", "보험", "금융", "증권", "지주", "신탁", "집합투자"],
+        "nasdaq": ["Financial", "Bank", "Insurance", "Consumer Finance", "Capital Markets",
+                   "은행", "보험", "금융", "증권", "지주",
+                   # FDR 한국어 Industry 매핑
+                   "기업 금융 서비스", "소비자 대출", "투자 관리 및 펀드 운영",
+                   "투자 은행 및 중개 서비스", "투자 지주 회사",
+                   "생명 및 건강 보험", "손해보험", "복합보험 및 중개인", "재보험",
+                   "금융, 상품 시장 운영 및 서비스 제공", "다각적 투자 서비스",
+                   "연금", "뮤추얼 펀드", "폐쇄형 펀드", "영국 투자 신탁",
+                   "온라인 소액 투자 중개"]
     },
     "산업재 (자본재, 기계, 상업/전문 서비스, 운송 및 물류)": {
-        "krx": ["산업재", "기계", "상업", "운송", "물류", "건설", "조선", "항공"],
-        "nasdaq": ["Industrial", "Capital Goods", "Machinery", "Commercial Services", "Transportation", "Logistics", "Aerospace", "산업재", "기계", "상업", "운송", "물류", "건설", "조선", "항공"]
+        "krx": ["산업재", "기계", "상업", "운송", "물류", "건설", "조선", "항공",
+                "선박", "보트", "엔지니어링", "도매", "중개", "무기", "총포탄",
+                "경비", "경호", "폐기물", "설비", "공사", "디자인", "컨설팅", "경영",
+                "사업지원"],
+        "nasdaq": ["Industrial", "Capital Goods", "Machinery", "Commercial Services", "Transportation", "Logistics", "Aerospace",
+                   "산업재", "기계", "상업", "운송", "물류", "건설", "조선", "항공",
+                   # FDR 한국어 Industry 매핑
+                   "산업용 기계 및 장비", "중장비 및 차량", "중전기장비",
+                   "건설 및 엔지니어링", "건설 자재", "건설 자재 및 비품",
+                   "항공우주 및 방위", "경영 지원 서비스", "고용 서비스",
+                   "배달, 우편, 항공 화물 및 육상 물류", "지상 화물 및 물류",
+                   "해양 화물 및 물류", "공항 운영 및 서비스", "항만 운영 및 서비스",
+                   "다각적 산업용 제품 도매", "상업 인쇄 서비스",
+                   "환경 서비스 및 장비"]
     },
     "소재 (화학, 건설자재, 금속 및 채광, 종이/포장재)": {
-        "krx": ["화학", "건설자재", "금속", "채광", "종이", "포장재", "철강", "비철금속"],
-        "nasdaq": ["Material", "Chemical", "Construction Material", "Metals", "Mining", "Paper", "Packaging", "화학", "건설자재", "금속", "채광", "종이", "포장재", "철강", "비철금속"]
+        "krx": ["화학", "건설자재", "금속", "채광", "종이", "포장재", "철강", "비철금속",
+                "고무", "플라스틱", "시멘트", "석회", "유리", "합성고무", "비료", "농약",
+                "요업", "나무", "직물", "방적", "섬유"],
+        "nasdaq": ["Material", "Chemical", "Construction Material", "Metals", "Mining", "Paper", "Packaging",
+                   "화학", "건설자재", "금속", "채광", "종이", "포장재", "철강", "비철금속",
+                   # FDR 한국어 Industry 매핑
+                   "다각적 화학 산업", "상품 화학", "특수 화학제",
+                   "철 및 강철", "알루미늄", "금", "금 제외 귀금속 및 광물",
+                   "다각적 채굴", "특수 채굴 및 금속", "채굴 지원 서비스 및 장비",
+                   "종이 제품", "종이 포장재", "용기(종이 제외) 및 포장재",
+                   "임업 및 목재 제품"]
     },
     "에너지 (석유/가스 탐사 및 생산, 정제, 에너지 장비 및 서비스)": {
-        "krx": ["에너지", "석유", "가스", "정제"],
-        "nasdaq": ["Energy", "Oil", "Gas", "Exploration", "Refining", "Energy Equipment", "에너지", "석유", "가스", "정제"]
+        "krx": ["에너지", "석유", "가스", "정제", "연료"],
+        "nasdaq": ["Energy", "Oil", "Gas", "Exploration", "Refining", "Energy Equipment",
+                   "에너지", "석유", "가스", "정제",
+                   # FDR 한국어 Industry 매핑
+                   "오일 관련 서비스 및 장비", "오일 및 가스 수송 서비스",
+                   "오일 및 가스 시추", "오일, 가스 정제 및 마케팅",
+                   "오일, 가스 탐사 및 생산", "통합 오일 및 가스",
+                   "석탄", "우라늄"]
     },
     "유틸리티 (전력, 가스, 수도, 다각화된 재생에너지)": {
-        "krx": ["전력", "수도", "유틸리티", "재생에너지", "환경"],
-        "nasdaq": ["Utility", "Electric", "Water", "Renewable", "전력", "수도", "유틸리티", "재생에너지", "환경"]
+        "krx": ["전력", "수도", "유틸리티", "재생에너지", "환경", "전기", "발전", "태양광",
+                "풍력", "증기", "냉·온수", "공기조절"],
+        "nasdaq": ["Utility", "Electric", "Water", "Renewable",
+                   "전력", "수도", "유틸리티", "재생에너지", "환경",
+                   # FDR 한국어 Industry 매핑 (SMR 등 누락 방지)
+                   "전력 유틸리티", "복합 유틸리티", "천연가스 유틸리티", "수자원 유틸리티",
+                   "민자 발전 사업", "재생 가능 에너지 장비 및 서비스", "재생 가능 연료"]
     },
     "부동산 (부동산 관리 및 개발, 리츠(REITs))": {
         "krx": ["부동산", "리츠", "리츠(REITs)", "건설업"],
-        "nasdaq": ["Real Estate", "REIT", "Property Management", "Development", "부동산", "리츠", "리츠(REITs)", "건설업"]
+        "nasdaq": ["Real Estate", "REIT", "Property Management", "Development",
+                   "부동산", "리츠", "리츠(REITs)", "건설업",
+                   # FDR 한국어 Industry 매핑
+                   "부동산 서비스", "부동산 임대, 개발 및 운영",
+                   "상업용 REITs", "주거용 REITs", "복합부동산 REITs", "특수 REITs"]
     }
 }
 
@@ -665,6 +725,210 @@ def get_market_tickers(theme_name, market_type="ALL"):
     return krx_tickers, nasdaq_tickers, ticker_to_name
 
 # ============================================================
+# 데이터 캐시 시스템: 한 번 다운로드 → 저장 → 재사용
+# ============================================================
+CACHE_FILE = "stock_data_cache.pkl"
+
+
+def collect_all_tickers(market_type="ALL"):
+    """11개 테마의 모든 고유 티커를 한 번에 수집 (네트워크 호출 없음)"""
+    all_krx = []
+    all_us = []
+    ticker_to_name = {}
+    theme_ticker_map = {}
+
+    for theme_name in THEMES.keys():
+        krx, us, names = get_market_tickers(theme_name, market_type)
+        theme_ticker_map[theme_name] = {"krx": krx, "us": us}
+        all_krx.extend(krx)
+        all_us.extend(us)
+        ticker_to_name.update(names)
+
+    all_krx = list(set(all_krx))
+    all_us = list(set(all_us))
+    print(f"\n[수집 완료] 전체 고유 종목: 한국 {len(all_krx)}개 + 미국 {len(all_us)}개 = 총 {len(all_krx) + len(all_us)}개")
+    return all_krx, all_us, ticker_to_name, theme_ticker_map
+
+
+def download_and_cache_all(all_krx, all_us):
+    """전 종목 OHLCV + 시가총액을 한 번에 다운로드하고 캐시 저장"""
+    cache = {"ohlcv": {}, "market_caps": {}, "timestamp": datetime.datetime.now()}
+
+    all_tickers = all_krx + all_us
+    # 우선주/잘못된 티커 사전 필터링 (공백 포함 티커는 Yahoo Finance에서 404 에러 발생)
+    all_tickers = [t for t in all_tickers if ' ' not in t]
+    if not all_tickers:
+        return cache
+
+    # yfinance 에러 로그 억제 (상장폐지 종목 등의 불필요한 에러 메시지 숨김)
+    yf_logger = logging.getLogger('yfinance')
+    prev_yf_level = yf_logger.level
+    yf_logger.setLevel(logging.CRITICAL)
+
+    # 1. 전 종목 OHLCV 일괄 다운로드 (단 1회의 yf.download)
+    print(f"\n[다운로드] 전체 {len(all_tickers)}개 종목 OHLCV 일괄 다운로드 중...", flush=True)
+    try:
+        all_data = yf.download(all_tickers, period="10y", interval="1d", progress=True, threads=True)
+    except Exception as e:
+        logger.warning(f"일괄 다운로드 실패: {e}")
+        return cache
+
+    if all_data.empty:
+        return cache
+
+    is_multi = isinstance(all_data.columns, pd.MultiIndex)
+
+    print(f"  → OHLCV 데이터 추출 중...", flush=True)
+
+    if is_multi:
+        # swaplevel로 (Column, Ticker) → (Ticker, Column) 변환 (O(1) 메타데이터 변경)
+        swapped = all_data.swaplevel(axis=1)
+        available = swapped.columns.get_level_values(0).unique()
+        total_available = len(available)
+        for idx, ticker in enumerate(available):
+            try:
+                df = swapped[ticker].dropna()
+                if not df.empty and len(df) > 0:
+                    cache["ohlcv"][ticker] = df
+            except Exception:
+                pass
+            if (idx + 1) % 500 == 0 or (idx + 1) == total_available:
+                pct = (idx + 1) / total_available * 100
+                sys.stdout.write(f"\r  → OHLCV 추출: {idx+1}/{total_available} ({pct:.0f}%)")
+                sys.stdout.flush()
+    else:
+        # 단일 종목인 경우
+        df = all_data.copy()
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.droplevel(1)
+        if not df.empty:
+            ticker = all_tickers[0] if all_tickers else None
+            if ticker:
+                cache["ohlcv"][ticker] = df
+
+    sys.stdout.write("\n")
+    print(f"  → OHLCV 데이터: {len(cache['ohlcv'])}개 종목 추출 완료", flush=True)
+
+    # 1-b. 누락 종목 개별 재시도 (yf.download 일괄 다운로드 시 일부 종목이 조용히 누락됨)
+    missing_tickers = [t for t in all_tickers if t not in cache["ohlcv"]]
+    if missing_tickers:
+        import time as _time
+        print(f"  → 누락 종목 {len(missing_tickers)}개 개별 재다운로드 중...", flush=True)
+        retry_success = 0
+        for i, ticker in enumerate(missing_tickers):
+            try:
+                df_retry = yf.download(ticker, period="10y", interval="1d", progress=False, threads=False)
+                if isinstance(df_retry.columns, pd.MultiIndex):
+                    df_retry.columns = df_retry.columns.droplevel(1)
+                df_retry = df_retry.dropna()
+                if not df_retry.empty and len(df_retry) > 0:
+                    cache["ohlcv"][ticker] = df_retry
+                    retry_success += 1
+            except Exception:
+                pass
+            _time.sleep(0.3)  # 차단 방지
+            if (i + 1) % 50 == 0:
+                sys.stdout.write(f"\r  → 재시도 진행: {i+1}/{len(missing_tickers)} ({retry_success}개 복구)")
+                sys.stdout.flush()
+        sys.stdout.write(f"\r  → 재시도 완료: {retry_success}/{len(missing_tickers)}개 복구                \n")
+        print(f"  → 최종 OHLCV 데이터: {len(cache['ohlcv'])}개 종목", flush=True)
+
+    # 2. 미국 주식 시가총액 조회 (유동성 사전 필터 + 차단 방지 딜레이)
+    us_with_data = [t for t in all_us if t in cache["ohlcv"]]
+
+    # 유동성 사전 필터: 거래대금이 너무 낮은 종목은 시가총액 조회 스킵 (요청 수 대폭 감소)
+    us_filtered = []
+    for ticker in us_with_data:
+        try:
+            df = cache["ohlcv"][ticker]
+            recent = df.tail(20)
+            avg_vol = recent['Volume'].mean()
+            avg_price = recent['Close'].mean()
+            if isinstance(avg_vol, pd.Series): avg_vol = avg_vol.item()
+            if isinstance(avg_price, pd.Series): avg_price = avg_price.item()
+            if avg_vol * avg_price >= 1_000_000:  # 일평균 거래대금 $1M 이상만
+                us_filtered.append(ticker)
+        except Exception:
+            pass
+
+    skipped = len(us_with_data) - len(us_filtered)
+    if us_filtered:
+        import time as _time
+        est_min = len(us_filtered) * 0.35 / 60
+        print(f"[다운로드] 미국 주식 시가총액 조회: {len(us_filtered)}개 (유동성 필터로 {skipped}개 제외)", flush=True)
+        print(f"  → 차단 방지 딜레이 적용 (예상 소요: ~{est_min:.0f}분)", flush=True)
+        cap_start = _time.time()
+        for i, ticker in enumerate(us_filtered):
+            try:
+                t_obj = yf.Ticker(ticker)
+                mc = getattr(t_obj.fast_info, 'market_cap', 0)
+                if mc and not pd.isna(mc):
+                    cache["market_caps"][ticker] = int(mc)
+            except Exception:
+                pass
+            _time.sleep(0.3)  # 차단 방지: 초당 ~3건
+
+            # 실시간 진행률 표시 (매 건마다 갱신)
+            done = i + 1
+            total = len(us_filtered)
+            pct = done / total * 100
+            elapsed = _time.time() - cap_start
+            rate = done / elapsed if elapsed > 0 else 0
+            eta = (total - done) / rate if rate > 0 else 0
+            bar_len = 25
+            filled = int(bar_len * done / total)
+            bar = '█' * filled + '░' * (bar_len - filled)
+            sys.stdout.write(f"\r  [{bar}] {pct:5.1f}% ({done}/{total}) | 경과 {elapsed:.0f}초 | 남은 ~{eta:.0f}초 | {ticker}")
+            sys.stdout.flush()
+
+            if done % 100 == 0:
+                sys.stdout.write("\n")
+                print(f"  → {done}/{total} 완료. 5초 쿨다운 대기...", flush=True)
+                _time.sleep(5)  # 100건마다 추가 쿨다운
+
+        sys.stdout.write("\n")
+        print(f"  → 시가총액 조회 완료! ({len(us_filtered)}건, {_time.time() - cap_start:.0f}초 소요)", flush=True)
+    else:
+        print(f"[다운로드] 시가총액 조회 대상 없음 (유동성 필터로 {skipped}개 제외)")
+
+    # yfinance 로그 레벨 복원
+    yf_logger.setLevel(prev_yf_level)
+
+    # 3. 캐시 파일 저장
+    with open(CACHE_FILE, "wb") as f:
+        pickle.dump(cache, f)
+
+    size_mb = os.path.getsize(CACHE_FILE) / (1024 * 1024)
+    print(f"[저장 완료] {len(cache['ohlcv'])}개 종목 캐시 → {CACHE_FILE} ({size_mb:.1f}MB)")
+    return cache
+
+
+def load_cache():
+    """24시간 이내 캐시가 있으면 로드, 없거나 만료되면 None 반환"""
+    if not os.path.exists(CACHE_FILE):
+        return None
+    try:
+        with open(CACHE_FILE, "rb") as f:
+            cache = pickle.load(f)
+        cached_time = cache.get("timestamp")
+        if cached_time:
+            elapsed = (datetime.datetime.now() - cached_time).total_seconds()
+            hours_ago = elapsed / 3600
+            if elapsed < 24 * 3600:  # 24시간 이내
+                n = len(cache.get("ohlcv", {}))
+                print(f"[캐시] 유효한 캐시 발견 ({hours_ago:.1f}시간 전, {n}개 종목). 다운로드를 건너뜁니다.")
+                return cache
+            else:
+                print(f"[캐시] 캐시 만료 ({hours_ago:.0f}시간 경과). 새로 다운로드합니다.")
+                return None
+        else:
+            return None
+    except Exception as e:
+        logger.warning(f"캐시 로드 실패: {e}")
+        return None
+
+
+# ============================================================
 # 디스코드 전송 (테마별 한국/미국 결과를 하나로 묶어 전송)
 # ============================================================
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
@@ -672,8 +936,8 @@ BASE_DASHBOARD_URL = "http://localhost:5173"
 
 labels = {
     "monthly_pattern": "🛡️ 월봉 지지 후 상승 (바닥권)",
-    "top30_pattern_match": "🔥 최신 트렌드 상승 패턴 (조건)",
-    "top30_shape_match": "📈 최신 트렌드 상승 패턴 (모양)",
+    "top70_pattern_match": "🔥 최신 트렌드 상승 패턴 (조건)",
+    "top70_shape_match": "📈 최신 트렌드 상승 패턴 (모양)",
     "cloud_twist": "🟢 양운 전환 (당일)",
     "cloud_twist_1w": "❇️ 1주 내 양운 전환: 음운에서 양운 크로스오버",
     "ma200_support_breakout": "📈 200일선: 지지 또는 돌파",
@@ -904,6 +1168,7 @@ def get_realtime_data():
     }
     
     data['PE'] = {}
+    import time as _time
     for sym, name in etf_symbols.items():
         try:
             pe = yf.Ticker(sym).info.get('trailingPE')
@@ -911,6 +1176,7 @@ def get_realtime_data():
                 data['PE'][name] = pe
             else:
                 data['PE'][name] = 20.0
+            _time.sleep(1)  # 차단 방지: .info는 무거운 호출이므로 1초 대기
         except:
             data['PE'][name] = 20.0
             
@@ -1009,6 +1275,8 @@ def get_top70_us_gainers():
         quotes = res.json().get('finance', {}).get('result', [{}])[0].get('quotes', [])
         
         top70_info = []
+        # 업종 정보 사전 구축 (네트워크 호출 대신 DF_US 캐시 사용)
+        us_industry_map = dict(zip(DF_US['Symbol'], DF_US['Industry'])) if not DF_US.empty else {}
 
         import yfinance as yf
         import time
@@ -1022,15 +1290,9 @@ def get_top70_us_gainers():
             chg_obj = q.get('regularMarketChangePercent', 0.0)
             chg = chg_obj.get('raw', 0.0) if isinstance(chg_obj, dict) else float(chg_obj)
             
-            sector = "Unknown"
-            industry = "Unknown"
-            try:
-                info = yf.Ticker(sym).info
-                sector = info.get('sector', 'Unknown')
-                industry = info.get('industry', 'Unknown')
-                time.sleep(0.1) # Yahoo 차단 방지
-            except Exception:
-                pass
+            # DF_US에서 업종 정보 즉시 조회 (기존 .info 호출 제거로 ~10분 단축)
+            industry = str(us_industry_map.get(sym, 'Unknown'))
+            sector = industry
                 
             top70_info.append({"rank": idx, "sym": sym, "name": ko_name, "chg": chg, "sector": sector, "industry": industry})
 
@@ -1346,56 +1608,80 @@ IT·커뮤니케이션 P/E 29배, 차익 실현 압력 극심""",
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--market', type=str, default="ALL")
+    parser.add_argument('--force', action='store_true', help="캐시를 무시하고 강제 다운로드")
+    parser.add_argument('--offline', action='store_true', help="오프라인 모드: 캐시만 사용, 네트워크 요청 0건 (테스트용)")
     args = parser.parse_args()
 
     all_scan_results = []
     skip_scan = False
+    top70_krx_text = "- 오프라인 모드: 당일 급등주 분석 생략"
+    top70_us_text = "- 오프라인 모드: 당일 급등주 분석 생략"
+    top70_data = []
+    top70_us_data = []
 
-    # 당일 상위 70종목 분석 데이터 가져오기 (오류 수정)
-    top70_krx_text, top70_data = get_top70_krx_gainers()
-    top70_us_text, top70_us_data = get_top70_us_gainers()
-    
-    # 급등주 선행 패턴(TOP70) 템플릿 빌드 (여기서 호출해야 분석 시 매칭 가능)
-    if not skip_scan:
-        krx_top = [t['code'] for t in top70_data][:70] if top70_data else []
-        us_top = top70_us_data[:70] if top70_us_data else []
-        build_top70_templates(krx_top, us_top)
+    if args.offline:
+        print("\n" + "=" * 50)
+        print(" 🔌 오프라인 모드: 캐시만 사용 (네트워크 요청 0건)")
+        print("=" * 50)
+        cache = load_cache()
+        if cache is None:
+            print("\n[오류] 캐시 파일이 없습니다. 먼저 온라인으로 한 번 실행해주세요:")
+            print("       python analyze_ichimoku.py")
+            sys.exit(1)
+    else:
+        # 당일 상위 70종목 분석 데이터 가져오기
+        top70_krx_text, top70_data = get_top70_krx_gainers()
+        top70_us_text, top70_us_data = get_top70_us_gainers()
 
-    if os.path.exists("scan_results.json"):
+        # 급등주 선행 패턴(TOP70) 템플릿 빌드 (여기서 호출해야 분석 시 매칭 가능)
+        if not skip_scan:
+            krx_top = [t['code'] for t in top70_data][:70] if top70_data else []
+            us_top = top70_us_data[:70] if top70_us_data else []
+            build_top70_templates(krx_top, us_top)
+
+    if os.path.exists("scan_results.json") and not args.offline:
         try:
             with open("scan_results.json", "r", encoding="utf-8") as f:
                 cached_data = json.load(f)
                 cached_time_str = cached_data.get("timestamp", "")
                 if cached_time_str:
                     cached_time = datetime.datetime.strptime(cached_time_str, "%Y-%m-%d %H:%M:%S")
-                    # [임시 해제] 3시간 캐시 로직 무효화 (회원님 요청으로 강제 스캔)
-                    # if (datetime.datetime.now() - cached_time).total_seconds() < 3 * 3600:
-                    #     print(f"\n[안내] 최근 스캔({cached_time_str})이 3시간 이내에 수행되었습니다. 무거운 주식 스캔을 생략하고 디스코드 메시지만 전송합니다.")
-                    #     all_scan_results = cached_data.get("data", [])
-                    #     skip_scan = True
         except Exception as e:
             logger.warning(f"캐시 읽기 실패: {e}")
 
     if not skip_scan:
+        # ── [최적화] 전체 티커 수집 → 일괄 다운로드 → 캐시 ──
+        print("\n[1단계] 전체 테마의 종목을 수집합니다...")
+        all_krx, all_us, ticker_to_name, theme_ticker_map = collect_all_tickers(args.market)
+
+        if not args.offline:
+            # 캐시 확인 (당일 캐시가 있으면 다운로드 스킵)
+            cache = None if args.force else load_cache()
+            if cache is None:
+                print("\n[2단계] 전 종목 데이터를 일괄 다운로드합니다...")
+                cache = download_and_cache_all(all_krx, all_us)
+
+        print(f"\n[3단계] {len(THEMES)}개 테마별 분석을 시작합니다... (캐시 사용, 네트워크 요청 없음)", flush=True)
         for theme_name in THEMES.keys():
             print(f"\n{'='*50}")
             print(f" [현재 스캔 테마] : {theme_name} (대상 시장: {args.market})")
             print(f"{'='*50}\n")
-    
-            krx_tickers, nasdaq_tickers, ticker_to_name = get_market_tickers(theme_name, market_type=args.market)
-    
-            # 미국 시장 분석 (먼저)
+
+            krx_tickers = theme_ticker_map[theme_name]["krx"]
+            nasdaq_tickers = theme_ticker_map[theme_name]["us"]
+
+            # 미국 시장 분석
             results_nasdaq = {}
             if nasdaq_tickers:
                 print(f"\n[미국] {theme_name} 테마 총 {len(nasdaq_tickers)}개의 종목에 대해 일목균형표 분석을 시작합니다.")
-                results_nasdaq = analyze_stocks(nasdaq_tickers, ticker_to_name)
-    
-            # 한국 시장 분석 (나중)
+                results_nasdaq = analyze_stocks(nasdaq_tickers, ticker_to_name, cache)
+
+            # 한국 시장 분석
             results_krx = {}
             if krx_tickers:
                 print(f"\n[한국] {theme_name} 테마 총 {len(krx_tickers)}개의 종목에 대해 일목균형표 분석을 시작합니다.")
-                results_krx = analyze_stocks(krx_tickers, ticker_to_name)
-    
+                results_krx = analyze_stocks(krx_tickers, ticker_to_name, cache)
+
             # 결과 출력
             print(f"\n{'='*15}[ {theme_name} 분석 결과 ]{'='*15}")
             for key, label in labels.items():
@@ -1403,7 +1689,7 @@ if __name__ == "__main__":
                 nasdaq_list = [t['display'] if isinstance(t, dict) else t for t in results_nasdaq.get(key, [])]
                 print(f" * {key}: KRX={krx_list}")
                 print(f"          NASDAQ={nasdaq_list}")
-    
+
             # JSON 결과 누적
             all_scan_results.append({
                 "theme": theme_name,
@@ -1418,21 +1704,24 @@ if __name__ == "__main__":
             "data": all_scan_results,
             "top30": top70_data  # 프론트엔드 호환성을 위해 키는 'top30' 유지
         }
-    
+
         # 루트에 저장 (FastAPI가 읽는 경로)
         with open("scan_results.json", "w", encoding="utf-8") as f:
             json.dump(output_data, f, ensure_ascii=False, indent=4)
-    
+
         # frontend/public에도 저장 (Vite 개발서버가 읽는 경로)
         os.makedirs("frontend/public", exist_ok=True)
         with open("frontend/public/scan_results.json", "w", encoding="utf-8") as f:
             json.dump(output_data, f, ensure_ascii=False, indent=4)
-    
+
         print("\n[완료] scan_results.json 저장 완료 (루트 + frontend/public)")
 
-    # 최종 디스코드 9분할 리포트 전송
-    print("\n[전송] 디스코드 리포트 전송을 시작합니다...")
-    send_to_discord(top70_krx_text, top70_us_text)
+    if not args.offline:
+        # 최종 디스코드 9분할 리포트 전송
+        print("\n[전송] 디스코드 리포트 전송을 시작합니다...")
+        send_to_discord(top70_krx_text, top70_us_text)
+    else:
+        print("\n[오프라인] 디스코드 전송 생략")
 
     print(f"\n[완료] 프로그램이 성공적으로 종료되었습니다! 대시보드: {BASE_DASHBOARD_URL}")
 

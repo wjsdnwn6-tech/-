@@ -8,9 +8,11 @@ __pycache__/
 
 # DB & 캐시
 paper_trading.db
+stock_data_cache.pkl
 ticker_names.json
 scan_results.json
 scan_results_old.json
+check_tickers.py
 
 # Node.js
 node_modules/
