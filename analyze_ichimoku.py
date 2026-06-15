@@ -24,6 +24,45 @@ logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 # ============================================================
+# 진행 상황 추적 유틸리티
+# ============================================================
+import time as _global_time
+_SCRIPT_START = _global_time.time()
+
+class StageTracker:
+    """전체 스캔 파이프라인의 단계별 진행 상황을 추적합니다."""
+    def __init__(self, total_stages=8):
+        self.start_time = _SCRIPT_START
+        self.stage_start = _global_time.time()
+        self.current_stage = 0
+        self.total_stages = total_stages
+
+    def start_stage(self, name):
+        self.current_stage += 1
+        self.stage_start = _global_time.time()
+        elapsed = _global_time.time() - self.start_time
+        mins, secs = divmod(int(elapsed), 60)
+        print(f"\n{'━'*60}")
+        print(f"  ⏱️  [{self.current_stage}/{self.total_stages}] {name}")
+        print(f"  📍 총 경과 시간: {mins}분 {secs}초")
+        print(f"{'━'*60}", flush=True)
+
+    def end_stage(self, summary=""):
+        elapsed = _global_time.time() - self.stage_start
+        mins, secs = divmod(int(elapsed), 60)
+        msg = f"  ✅ 완료 ({mins}분 {secs}초 소요)"
+        if summary:
+            msg += f" — {summary}"
+        print(msg, flush=True)
+
+    def print_total(self):
+        elapsed = _global_time.time() - self.start_time
+        mins, secs = divmod(int(elapsed), 60)
+        print(f"\n{'━'*60}")
+        print(f"  🏁 전체 스캔 완료! 총 소요 시간: {mins}분 {secs}초")
+        print(f"{'━'*60}", flush=True)
+
+# ============================================================
 # 전역 캐시: 시작 시 한 번만 로드
 # ============================================================
 print("[준비] 시장 데이터를 로드 중입니다...")
@@ -200,14 +239,21 @@ def build_top70_templates(krx_tickers, us_tickers):
     
     start_date = (datetime.datetime.now() - datetime.timedelta(days=700)).strftime('%Y-%m-%d')
     
-    for code in krx_tickers:
+    total_krx = len(krx_tickers)
+    for idx, code in enumerate(krx_tickers):
         try:
+            if total_krx > 0:
+                pct = (idx + 1) / total_krx * 100
+                sys.stdout.write(f"\r  → KRX 템플릿 추출: {idx+1}/{total_krx} ({pct:.0f}%)")
+                sys.stdout.flush()
             df = fdr.DataReader(code, start_date)
             if not df.empty:
                 feat = extract_features_for_template(df)
                 if feat: TOP70_TEMPLATES.append(feat)
         except Exception:
             pass
+    if total_krx > 0:
+        sys.stdout.write("\n")
             
     if us_tickers:
         try:
@@ -462,13 +508,17 @@ def analyze_stocks(tickers, ticker_to_name, cache):
                             
                         # Case 2: 지난 달에 턴어라운드 (T-3, T-2, T-1)
                         elif len(df_m) >= 4 and evaluate_window(df_m.iloc[-4], df_m.iloc[-3], df_m.iloc[-2]):
-                            # 턴어라운드가 지난달 완성 → 이번 달은 진행 중(불완전)이므로
-                            # 이번 달 종가로 판단하지 않고, 턴어라운드 자체가 확정된 것으로 인정
-                            pattern_matched = True
+                            # 돌파 캔들 몸통의 절반(midpoint) 이상을 이번 달에도 유지하는지 확인
+                            # → 양봉 후 큰 음봉이 나온 실패한 돌파 제외 (예: RBLX)
+                            c0_o, c0_c = get_val(df_m.iloc[-2]['Open']), get_val(df_m.iloc[-2]['Close'])
+                            midpoint = c0_o + (c0_c - c0_o) * 0.5
+                            t_c = get_val(df_m.iloc[-1]['Close'])
+                            if t_c >= midpoint:
+                                pattern_matched = True
                                 
                         # Case 3: 지지난 달에 턴어라운드 (T-4, T-3, T-2)
                         elif len(df_m) >= 5 and evaluate_window(df_m.iloc[-5], df_m.iloc[-4], df_m.iloc[-3]):
-                            # 턴어라운드 이후 지난 달(완성된 월봉)이 돌파 캔들 시가 이상 유지했는지만 확인
+                            # 지난 달(완성된 월봉)만으로 후속 유지 확인
                             # 이번 달(진행 중)은 불완전하므로 판단에서 제외
                             c0_o = get_val(df_m.iloc[-3]['Open'])
                             t1_c = get_val(df_m.iloc[-2]['Close'])
@@ -678,10 +728,10 @@ def get_market_tickers(theme_name, market_type="ALL"):
                 name_col = 'Name_x' if 'Name_x' in krx_filtered.columns else 'Name'
                 market_col = 'Market_x' if 'Market_x' in krx_filtered.columns else 'Market'
 
+                import re
                 for _, row in krx_filtered.iterrows():
                     stock_name = row[name_col]
                     # 우선주 제외 (이름 끝이 '우', '우B', '우C' 등)
-                    import re
                     if re.search(r'우[A-C]?$', stock_name):
                         continue
                     # 스팩(SPAC)/기업인수목적/리츠 우선주 등 제외
@@ -768,7 +818,7 @@ def download_and_cache_all(all_krx, all_us):
     # 1. 전 종목 OHLCV 일괄 다운로드 (단 1회의 yf.download)
     print(f"\n[다운로드] 전체 {len(all_tickers)}개 종목 OHLCV 일괄 다운로드 중...", flush=True)
     try:
-        all_data = yf.download(all_tickers, period="10y", interval="1d", progress=True, threads=True)
+        all_data = yf.download(all_tickers, period="5y", interval="1d", progress=True, threads=True)
     except Exception as e:
         logger.warning(f"일괄 다운로드 실패: {e}")
         return cache
@@ -809,87 +859,85 @@ def download_and_cache_all(all_krx, all_us):
     sys.stdout.write("\n")
     print(f"  → OHLCV 데이터: {len(cache['ohlcv'])}개 종목 추출 완료", flush=True)
 
-    # 1-b. 누락 종목 개별 재시도 (yf.download 일괄 다운로드 시 일부 종목이 조용히 누락됨)
+    # 1-b. 누락 종목 배치 재시도 (최대 200개, 50개씩 묶어서 다운로드)
     missing_tickers = [t for t in all_tickers if t not in cache["ohlcv"]]
     if missing_tickers:
-        import time as _time
-        print(f"  → 누락 종목 {len(missing_tickers)}개 개별 재다운로드 중...", flush=True)
+        MAX_RETRY = 200
+        BATCH_SIZE = 50
+        if len(missing_tickers) > MAX_RETRY:
+            print(f"  → 누락 종목 {len(missing_tickers)}개 중 {MAX_RETRY}개만 재시도 (나머지 생략)", flush=True)
+            missing_tickers = missing_tickers[:MAX_RETRY]
+        else:
+            print(f"  → 누락 종목 {len(missing_tickers)}개 배치 재다운로드 중...", flush=True)
+
         retry_success = 0
-        for i, ticker in enumerate(missing_tickers):
+        for batch_start in range(0, len(missing_tickers), BATCH_SIZE):
+            batch = missing_tickers[batch_start:batch_start + BATCH_SIZE]
+            batch_num = batch_start // BATCH_SIZE + 1
+            total_batches = (len(missing_tickers) + BATCH_SIZE - 1) // BATCH_SIZE
+            sys.stdout.write(f"\r  → 배치 재시도: [{batch_num}/{total_batches}] {len(batch)}개 종목...")
+            sys.stdout.flush()
             try:
-                df_retry = yf.download(ticker, period="10y", interval="1d", progress=False, threads=False)
-                if isinstance(df_retry.columns, pd.MultiIndex):
-                    df_retry.columns = df_retry.columns.droplevel(1)
-                df_retry = df_retry.dropna()
-                if not df_retry.empty and len(df_retry) > 0:
-                    cache["ohlcv"][ticker] = df_retry
-                    retry_success += 1
+                df_batch = yf.download(batch, period="5y", interval="1d", progress=False, threads=True)
+                if not df_batch.empty:
+                    if isinstance(df_batch.columns, pd.MultiIndex):
+                        swapped = df_batch.swaplevel(axis=1)
+                        for ticker in batch:
+                            try:
+                                if ticker in swapped.columns.get_level_values(0):
+                                    df_t = swapped[ticker].dropna()
+                                    if not df_t.empty:
+                                        cache["ohlcv"][ticker] = df_t
+                                        retry_success += 1
+                            except Exception:
+                                pass
+                    elif len(batch) == 1:
+                        df_single = df_batch.copy()
+                        if isinstance(df_single.columns, pd.MultiIndex):
+                            df_single.columns = df_single.columns.droplevel(1)
+                        df_single = df_single.dropna()
+                        if not df_single.empty:
+                            cache["ohlcv"][batch[0]] = df_single
+                            retry_success += 1
             except Exception:
                 pass
-            _time.sleep(0.3)  # 차단 방지
-            if (i + 1) % 50 == 0:
-                sys.stdout.write(f"\r  → 재시도 진행: {i+1}/{len(missing_tickers)} ({retry_success}개 복구)")
-                sys.stdout.flush()
         sys.stdout.write(f"\r  → 재시도 완료: {retry_success}/{len(missing_tickers)}개 복구                \n")
         print(f"  → 최종 OHLCV 데이터: {len(cache['ohlcv'])}개 종목", flush=True)
 
-    # 2. 미국 주식 시가총액 조회 (유동성 사전 필터 + 차단 방지 딜레이)
-    us_with_data = [t for t in all_us if t in cache["ohlcv"]]
+    # 2. 미국 주식 시가총액 조회 (ThreadPoolExecutor 병렬 처리)
+    us_in_cache = [t for t in all_us if t in cache["ohlcv"]]
+    if us_in_cache:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    # 유동성 사전 필터: 거래대금이 너무 낮은 종목은 시가총액 조회 스킵 (요청 수 대폭 감소)
-    us_filtered = []
-    for ticker in us_with_data:
-        try:
-            df = cache["ohlcv"][ticker]
-            recent = df.tail(20)
-            avg_vol = recent['Volume'].mean()
-            avg_price = recent['Close'].mean()
-            if isinstance(avg_vol, pd.Series): avg_vol = avg_vol.item()
-            if isinstance(avg_price, pd.Series): avg_price = avg_price.item()
-            if avg_vol * avg_price >= 1_000_000:  # 일평균 거래대금 $1M 이상만
-                us_filtered.append(ticker)
-        except Exception:
-            pass
+        print(f"\n[시가총액] 미국 주식 {len(us_in_cache)}개 시가총액 조회 중...", flush=True)
 
-    skipped = len(us_with_data) - len(us_filtered)
-    if us_filtered:
-        import time as _time
-        est_min = len(us_filtered) * 0.35 / 60
-        print(f"[다운로드] 미국 주식 시가총액 조회: {len(us_filtered)}개 (유동성 필터로 {skipped}개 제외)", flush=True)
-        print(f"  → 차단 방지 딜레이 적용 (예상 소요: ~{est_min:.0f}분)", flush=True)
-        cap_start = _time.time()
-        for i, ticker in enumerate(us_filtered):
+        def _fetch_mcap(ticker):
             try:
-                t_obj = yf.Ticker(ticker)
-                mc = getattr(t_obj.fast_info, 'market_cap', 0)
-                if mc and not pd.isna(mc):
-                    cache["market_caps"][ticker] = int(mc)
+                mc = yf.Ticker(ticker).fast_info.market_cap
+                if mc and mc > 0:
+                    return ticker, int(mc)
             except Exception:
                 pass
-            _time.sleep(0.3)  # 차단 방지: 초당 ~3건
+            return ticker, 0
 
-            # 실시간 진행률 표시 (매 건마다 갱신)
-            done = i + 1
-            total = len(us_filtered)
-            pct = done / total * 100
-            elapsed = _time.time() - cap_start
-            rate = done / elapsed if elapsed > 0 else 0
-            eta = (total - done) / rate if rate > 0 else 0
-            bar_len = 25
-            filled = int(bar_len * done / total)
-            bar = '█' * filled + '░' * (bar_len - filled)
-            sys.stdout.write(f"\r  [{bar}] {pct:5.1f}% ({done}/{total}) | 경과 {elapsed:.0f}초 | 남은 ~{eta:.0f}초 | {ticker}")
-            sys.stdout.flush()
-
-            if done % 100 == 0:
-                sys.stdout.write("\n")
-                print(f"  → {done}/{total} 완료. 5초 쿨다운 대기...", flush=True)
-                _time.sleep(5)  # 100건마다 추가 쿨다운
+        success_count = 0
+        total_us = len(us_in_cache)
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(_fetch_mcap, t): t for t in us_in_cache}
+            for i, future in enumerate(as_completed(futures)):
+                ticker, mc = future.result()
+                if mc > 0:
+                    cache["market_caps"][ticker] = mc
+                    success_count += 1
+                if (i + 1) % 50 == 0 or (i + 1) == total_us:
+                    pct = (i + 1) / total_us * 100
+                    sys.stdout.write(f"\r  → 시가총액 조회: {i+1}/{total_us} ({pct:.0f}%) | 성공: {success_count}")
+                    sys.stdout.flush()
 
         sys.stdout.write("\n")
-        print(f"  → 시가총액 조회 완료! ({len(us_filtered)}건, {_time.time() - cap_start:.0f}초 소요)", flush=True)
+        print(f"  → 미국 주식 시가총액: {success_count}/{total_us}개 조회 완료", flush=True)
     else:
-        print(f"[다운로드] 시가총액 조회 대상 없음 (유동성 필터로 {skipped}개 제외)")
+        print(f"  → 미국 주식 시가총액: 캐시에 미국 종목 없음 (건너뜀)", flush=True)
 
     # yfinance 로그 레벨 복원
     yf_logger.setLevel(prev_yf_level)
@@ -946,17 +994,57 @@ labels = {
 
 def translate_to_ko(text):
     if not text or text in ['No title', 'No summary']: return text
-    try:
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q={requests.utils.quote(text)}"
-        res = requests.get(url, timeout=3)
-        if res.status_code == 200:
-            return "".join([x[0] for x in res.json()[0]])
-    except Exception:
-        pass
+    for attempt in range(2):  # 2회 재시도
+        try:
+            url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q={requests.utils.quote(text)}"
+            res = requests.get(url, timeout=8)
+            if res.status_code == 200:
+                translated = "".join([x[0] for x in res.json()[0]])
+                # 자연스러운 한국어 후처리
+                translated = translated.replace(' 의 ', '의 ').replace(' 을 ', '을 ').replace(' 를 ', '를 ')
+                translated = translated.replace(' 이 ', '이 ').replace(' 가 ', '가 ')
+                translated = re.sub(r'\s+', ' ', translated).strip()
+                return translated
+            elif res.status_code == 429:
+                import time as _t; _t.sleep(2)  # Rate limit → 2초 대기 후 재시도
+                continue
+        except requests.exceptions.Timeout:
+            import time as _t; _t.sleep(1)
+            continue
+        except Exception as e:
+            if attempt == 0:
+                import time as _t; _t.sleep(1)
+                continue
+            break
     return text
 
+def format_news_concise(news_items, max_items=3):
+    """뉴스 항목을 핵심 제목만 간결하게 한국어로 변환합니다.
+    기존: 제목 전체 + 요약 전체를 그대로 번역 → 너무 길고 번역체
+    개선: 제목만 번역 후 한 줄로 표시 (핵심 포인트만)
+    """
+    if not news_items:
+        return None
+    formatted = []
+    for n in news_items[:max_items]:
+        title = n.get('content', {}).get('title', '')
+        if not title or title == 'No title':
+            continue
+        ko_title = translate_to_ko(title)
+        # 제목이 너무 길면 마침표/쉼표 기준으로 앞부분만 사용
+        if len(ko_title) > 80:
+            for sep in ['. ', ', ', ' - ']:
+                idx = ko_title.find(sep)
+                if 20 < idx < 80:
+                    ko_title = ko_title[:idx]
+                    break
+        formatted.append(f"🔹 {ko_title}")
+    return "\n".join(formatted) if formatted else None
+
 def get_realtime_data():
-    print("[데이터] 실시간 시장 데이터를 가져오는 중...")
+    _rd_start = _global_time.time()
+    print("[데이터] 실시간 시장 데이터를 가져오는 중... (약 30개 항목, 예상 ~2분)")
+    print("  → [1/4] 매크로 지표 조회 (DXY, CPI, PCE, 고용, Fed 금리 등)...", flush=True)
     data = {}
     
     # DXY
@@ -967,6 +1055,75 @@ def get_realtime_data():
         data['DXY'] = "97.86"
 
     # FRED Macro Indicators
+    # ── 공식 발표일 룩업 테이블 (BLS/BEA/FOMC 2026년 스케줄) ──
+    # key: (year, reference_month) → value: "발표일 문자열"
+    CPI_RELEASE = {
+        (2026,1):"2/11",(2026,2):"3/11",(2026,3):"4/10",(2026,4):"5/12",(2026,5):"6/10",
+        (2026,6):"7/14",(2026,7):"8/12",(2026,8):"9/11",(2026,9):"10/14",(2026,10):"11/10",(2026,11):"12/10",
+        (2025,12):"1/14",(2025,11):"12/11",(2025,10):"11/13",(2025,9):"10/10",
+    }
+    PCE_RELEASE = {
+        (2025,12):"2/20",(2026,1):"3/13",(2026,2):"4/9",(2026,3):"4/30",(2026,4):"5/28",
+        (2026,5):"6/25",(2026,6):"7/31",(2026,7):"8/28",(2026,8):"9/30",(2026,9):"10/30",(2026,10):"11/25",(2026,11):"12/23",
+    }
+    NFP_RELEASE = {
+        (2025,12):"1/9",(2026,1):"2/11",(2026,2):"3/6",(2026,3):"4/3",(2026,4):"5/8",(2026,5):"6/5",
+        (2026,6):"7/2",(2026,7):"8/7",(2026,8):"9/4",(2026,9):"10/2",(2026,10):"11/6",(2026,11):"12/4",
+    }
+    FOMC_DATES = {
+        (2026,1):"1/28",(2026,3):"3/18",(2026,4):"4/29",(2026,6):"6/17",
+        (2026,7):"7/29",(2026,9):"9/16",(2026,10):"10/28",(2026,12):"12/9",
+    }
+    def _lookup_release(table, ref_date, fallback_fmt=True):
+        """FRED 기준월 인덱스로 공식 발표일을 찾아 MM/DD 형식으로 반환"""
+        key = (ref_date.year, ref_date.month)
+        val = table.get(key)
+        if val:
+            # '5/28' → '05/28' 제로패딩 통일
+            parts = val.split('/')
+            if len(parts) == 2:
+                return f"{int(parts[0]):02d}/{int(parts[1]):02d}"
+            return val
+        if fallback_fmt:
+            return ref_date.strftime('%m/%d')
+        return ''
+
+    def _fetch_cnbc_quote(*symbols):
+        """CNBC API에서 실시간 시세 조회 (DGS2, Fed금리, VIX 등)"""
+        try:
+            sym_str = '|'.join(symbols)
+            url = f"https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols={sym_str}&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json"
+            res = requests.get(url, timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+            if res.status_code == 200:
+                result = {}
+                for q in res.json().get('FormattedQuoteResult', {}).get('FormattedQuote', []):
+                    sym = q.get('symbol', '')
+                    last = q.get('last', '').replace('%', '').replace(',', '')
+                    try:
+                        result[sym] = float(last)
+                    except ValueError:
+                        pass
+                return result
+        except Exception:
+            pass
+        return {}
+
+    def _fetch_fred_api(series_id, limit=1):
+        """FRED API에서 경제지표 실시간 조회 (.env의 FRED_API_KEY 필요)"""
+        api_key = os.getenv('FRED_API_KEY', '')
+        if not api_key:
+            return None, None
+        try:
+            url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={api_key}&file_type=json&sort_order=desc&limit={limit}"
+            res = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+            if res.status_code == 200:
+                obs = res.json().get('observations', [])
+                if obs and obs[0].get('value') not in (None, '.', ''):
+                    return float(obs[0]['value']), obs[0].get('date', '')
+        except Exception:
+            pass
+        return None, None
+
     try:
         import FinanceDataReader as fdr
         import pandas as pd
@@ -975,46 +1132,123 @@ def get_realtime_data():
             cpi = fdr.DataReader('FRED:CPIAUCSL')
             cpi_yoy = (cpi.iloc[-1,0] / cpi.iloc[-13,0] - 1) * 100
             data['CPI_YOY'] = f"{cpi_yoy:.1f}%"
-        except Exception: data['CPI_YOY'] = "3.3%"
+            data['CPI_DATE'] = _lookup_release(CPI_RELEASE, cpi.index[-1])
+        except Exception:
+            data['CPI_YOY'] = "3.3%"
+            data['CPI_DATE'] = ''
         
         try:
             pce = fdr.DataReader('FRED:PCEPI')
             pce_yoy = (pce.iloc[-1,0] / pce.iloc[-13,0] - 1) * 100
             data['PCE_YOY'] = f"{pce_yoy:.1f}%"
-        except Exception: data['PCE_YOY'] = "3.5%"
+            data['PCE_DATE'] = _lookup_release(PCE_RELEASE, pce.index[-1])
+        except Exception:
+            data['PCE_YOY'] = "3.5%"
+            data['PCE_DATE'] = ''
         
         try:
             payems = fdr.DataReader('FRED:PAYEMS')
             nfp = payems.iloc[-1,0] - payems.iloc[-2,0]
             data['NFP'] = f"{nfp:.0f}K"
-        except Exception: data['NFP'] = "178K"
+            data['NFP_DATE'] = _lookup_release(NFP_RELEASE, payems.index[-1])
+        except Exception:
+            data['NFP'] = "178K"
+            data['NFP_DATE'] = ''
         
         try:
             unrate = fdr.DataReader('FRED:UNRATE')
             data['UNRATE'] = f"{unrate.iloc[-1,0]:.1f}%"
-        except Exception: data['UNRATE'] = "4.3%"
+            data['UNRATE_DATE'] = _lookup_release(NFP_RELEASE, unrate.index[-1])
+        except Exception:
+            data['UNRATE'] = "4.3%"
+            data['UNRATE_DATE'] = ''
         
         try:
-            fed_upper = fdr.DataReader('FRED:DFEDTARU').iloc[-1,0]
-            fed_lower = fdr.DataReader('FRED:DFEDTARL').iloc[-1,0]
+            # FEDFUNDS: Fed 실효금리 (단일 값) — FinanceDataReader에서 작동 확인됨
+            fedfunds = fdr.DataReader('FRED:FEDFUNDS')
+            eff_rate = fedfunds.iloc[-1, 0]
+            import math
+            fed_upper = math.ceil(eff_rate * 4) / 4
+            fed_lower = fed_upper - 0.25
             data['FED_RATE'] = f"Fed {fed_lower:.2f}~{fed_upper:.2f}%"
-        except Exception: data['FED_RATE'] = "Fed 3.50~3.75%"
+            data['FED_DATE'] = _lookup_release(FOMC_DATES, fedfunds.index[-1])
+        except Exception:
+            # FRED API 폴백: 직접 DFEDTARU/DFEDTARL 조회
+            upper, _ = _fetch_fred_api('DFEDTARU')
+            lower, _ = _fetch_fred_api('DFEDTARL')
+            if upper is not None and lower is not None:
+                data['FED_RATE'] = f"Fed {lower:.2f}~{upper:.2f}%"
+                data['FED_DATE'] = ''
+            else:
+                # CNBC API 폴백
+                try:
+                    cnbc = _fetch_cnbc_quote('US3M')
+                    rate_3m = cnbc.get('US3M')
+                    if rate_3m and 2.0 <= rate_3m <= 8.0:
+                        import math
+                        fed_upper = math.ceil(rate_3m * 4) / 4
+                        fed_lower = fed_upper - 0.25
+                        data['FED_RATE'] = f"Fed {fed_lower:.2f}~{fed_upper:.2f}%"
+                    else:
+                        data['FED_RATE'] = "Fed 3.50~3.75%"
+                except Exception:
+                    data['FED_RATE'] = "Fed 3.50~3.75%"
+                data['FED_DATE'] = ''
         
         try:
             nfci = fdr.DataReader('FRED:NFCI')
             data['NFCI'] = f"{nfci.iloc[-1,0]:.2f}"
-        except Exception: data['NFCI'] = "-0.52"
+            data['NFCI_DATE'] = nfci.index[-1].strftime('%m/%d')
+        except Exception:
+            # FRED API 폴백: NFCI 실시간 조회
+            nfci_val, nfci_date = _fetch_fred_api('NFCI')
+            if nfci_val is not None:
+                data['NFCI'] = f"{nfci_val:.2f}"
+                # FRED 날짜 포맷: 2026-06-05 → 06/05
+                data['NFCI_DATE'] = nfci_date[5:].replace('-', '/') if nfci_date else ''
+            else:
+                # VIX 기반 추정 폴백
+                from datetime import datetime
+                try:
+                    cnbc_vix = _fetch_cnbc_quote('.VIX')
+                    vix_val = cnbc_vix.get('.VIX')
+                    if vix_val is None:
+                        vix_val = yf.Ticker('^VIX').fast_info.last_price
+                    if vix_val < 15: nfci_est = -0.70
+                    elif vix_val < 18: nfci_est = -0.50
+                    elif vix_val < 22: nfci_est = -0.30
+                    elif vix_val < 25: nfci_est = -0.10
+                    else: nfci_est = 0.10
+                    data['NFCI'] = f"{nfci_est:.2f}"
+                except Exception:
+                    data['NFCI'] = "-0.52"
+                data['NFCI_DATE'] = datetime.now().strftime('%m/%d')
         
-        data['PMI'] = "52.7"
+        try:
+            ism = fdr.DataReader('FRED:NAPM')
+            data['PMI'] = f"{ism.iloc[-1,0]:.1f}"
+            data['PMI_DATE'] = ism.index[-1].strftime('%m/%d')
+        except Exception:
+            # PMI는 yfinance에 없음 — 기본값 사용 (월간 수동 업데이트 필요)
+            data['PMI'] = "54.0"
+            data['PMI_DATE'] = '06/01'
     except Exception:
         data['CPI_YOY'] = "3.3%"
+        data['CPI_DATE'] = ''
         data['PCE_YOY'] = "3.5%"
+        data['PCE_DATE'] = ''
         data['NFP'] = "178K"
+        data['NFP_DATE'] = ''
         data['UNRATE'] = "4.3%"
+        data['UNRATE_DATE'] = ''
         data['FED_RATE'] = "Fed 3.50~3.75%"
+        data['FED_DATE'] = ''
         data['NFCI'] = "-0.52"
-        data['PMI'] = "52.7"
+        data['NFCI_DATE'] = ''
+        data['PMI'] = "54.0"
+        data['PMI_DATE'] = '06/01'
 
+    print("  → [2/4] 시장 지표 조회 (KRW, VIX, Gold, Silver, WTI 등)...", flush=True)
     # KRW
     try:
         krw = yf.Ticker('KRW=X').fast_info.last_price
@@ -1057,6 +1291,7 @@ def get_realtime_data():
     except Exception:
         data['WTI'] = "92.78"
 
+    print("  → [3/4] 채권, 크립토, 뉴스 및 Fed 발언 조회...", flush=True)
     # TNX (10-Year Yield) & News
     try:
         hist = yf.Ticker('^TNX').history(period='5d')
@@ -1071,7 +1306,7 @@ def get_realtime_data():
             
     try:
         tnx_news = yf.Ticker('^TNX').news[:3]
-        tnx_news_str = "\n\n".join([f"🔹 {translate_to_ko(n.get('content', {}).get('title', 'No title'))}\n  └ {translate_to_ko(n.get('content', {}).get('summary', 'No summary'))}" for n in tnx_news])
+        tnx_news_str = format_news_concise(tnx_news)
         data['TNX_NEWS'] = tnx_news_str if tnx_news_str else "- 최근 10년물 국채 관련 특이 뉴스 없음."
     except Exception:
          data['TNX_NEWS'] = "- 최근 10년물 국채 관련 특이 뉴스 없음."
@@ -1079,14 +1314,28 @@ def get_realtime_data():
     # 2-Year Yield (FRED DGS2) & News (SHY)
     try:
         import FinanceDataReader as fdr
-        dgs2 = float(fdr.DataReader('FRED:DGS2').iloc[-1,0])
+        dgs2 = float(fdr.DataReader('FRED:GS2').iloc[-1,0])
         data['DGS2'] = f"{round(dgs2, 3):.3f}"
     except Exception:
-        data['DGS2'] = "4.000"
+        # FRED API 폴백: DGS2 실시간
+        dgs2_val, _ = _fetch_fred_api('DGS2')
+        if dgs2_val is not None:
+            data['DGS2'] = f"{dgs2_val:.3f}"
+        else:
+            # CNBC API 폴백: US 2-Year Treasury
+            try:
+                cnbc_2y = _fetch_cnbc_quote('US2Y')
+                val_2y = cnbc_2y.get('US2Y')
+                if val_2y:
+                    data['DGS2'] = f"{val_2y:.3f}"
+                else:
+                    data['DGS2'] = "4.035"
+            except Exception:
+                data['DGS2'] = "4.035"
         
     try:
         shy_news = yf.Ticker('SHY').news[:3]
-        shy_news_str = "\n\n".join([f"🔹 {translate_to_ko(n.get('content', {}).get('title', 'No title'))}\n  └ {translate_to_ko(n.get('content', {}).get('summary', 'No summary'))}" for n in shy_news])
+        shy_news_str = format_news_concise(shy_news)
         data['DGS2_NEWS'] = shy_news_str if shy_news_str else "- 최근 2년물 국채 관련 특이 뉴스 없음."
     except Exception:
         data['DGS2_NEWS'] = "- 최근 2년물 국채 관련 특이 뉴스 없음."
@@ -1105,7 +1354,7 @@ def get_realtime_data():
             
     try:
         btc_news = yf.Ticker('BTC-USD').news[:3]
-        btc_news_str = "\n\n".join([f"🔹 {translate_to_ko(n.get('content', {}).get('title', 'No title'))}\n  └ {translate_to_ko(n.get('content', {}).get('summary', 'No summary'))}" for n in btc_news])
+        btc_news_str = format_news_concise(btc_news)
         data['BTC_NEWS'] = btc_news_str if btc_news_str else "- 최근 비트코인 관련 특이 뉴스 없음."
     except Exception:
         data['BTC_NEWS'] = "- 최근 비트코인 관련 특이 뉴스 없음."
@@ -1114,14 +1363,12 @@ def get_realtime_data():
     # Macro / Geopolitical News (Top 3 Highly Trusted from SPY)
     try:
         spy_news = yf.Ticker('SPY').news[:3]
-        formatted_news = []
-        for n in spy_news:
-            title = n.get('content', {}).get('title', 'No title')
-            summary = n.get('content', {}).get('summary', 'No summary')
-            ko_title = translate_to_ko(title)
-            ko_summary = translate_to_ko(summary)
-            formatted_news.append(f"📰 {ko_title}\n  └ 📝 요약: {ko_summary}")
-        data['MACRO_NEWS'] = "\n\n".join(formatted_news) if formatted_news else "- 최근 24시간 내 특이 뉴스 없음."
+        macro_news_str = format_news_concise(spy_news)
+        if macro_news_str:
+            # 📰 이모지로 교체 (매크로 뉴스 구분)
+            data['MACRO_NEWS'] = macro_news_str.replace('🔹', '📰')
+        else:
+            data['MACRO_NEWS'] = "- 최근 24시간 내 특이 뉴스 없음."
     except Exception as e:
         data['MACRO_NEWS'] = "- 뉴스 데이터를 불러올 수 없습니다."
         
@@ -1151,7 +1398,8 @@ def get_realtime_data():
 
 
         
-    # PE Data (Trailing PE)
+    # PE Data (Trailing PE) — Yahoo Finance v7 Quote API 배치 조회 (단 1회 호출)
+    print("  → [4/4] 섹터별 PE 밸류에이션 조회 (11개 ETF, ~12초 소요)...", flush=True)
     etf_symbols = {
         'SPY': '시장 전체',
         'XLK': 'IT',
@@ -1169,17 +1417,60 @@ def get_realtime_data():
     
     data['PE'] = {}
     import time as _time
+    total_etfs = len(etf_symbols)
+    
+    # 방법 1: Yahoo Finance v7 Quote API 배치 호출 (전 ETF를 1회 요청으로 조회)
+    pe_fetched = False
+    try:
+        symbols_str = ",".join(etf_symbols.keys())
+        quote_url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols_str}"
+        quote_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        quote_res = requests.get(quote_url, headers=quote_headers, timeout=10)
+        if quote_res.status_code == 200:
+            quotes = quote_res.json().get('quoteResponse', {}).get('result', [])
+            for q in quotes:
+                sym = q.get('symbol', '')
+                name = etf_symbols.get(sym, '')
+                if name:
+                    pe = q.get('trailingPE', 0)
+                    if pe and pe > 0:
+                        data['PE'][name] = round(pe, 1)
+                        sys.stdout.write(f"\r    PE: {name} ({sym}) → {pe:.1f}배 ✅          ")
+                        sys.stdout.flush()
+            # 조회 성공 여부 확인
+            if len(data['PE']) >= total_etfs * 0.5:  # 절반 이상 성공하면 OK
+                pe_fetched = True
+                print(f"\r    PE: v7 Quote API로 {len(data['PE'])}/{total_etfs}개 조회 성공          ")
+    except Exception as e:
+        logger.warning(f"v7 Quote API PE 조회 실패: {e}")
+    
+    # 방법 2: 실패 시 yfinance .info 개별 호출 (폴백)
+    if not pe_fetched:
+        print("    PE: v7 API 실패 → yfinance .info 개별 조회로 전환...", flush=True)
+        for idx, (sym, name) in enumerate(etf_symbols.items()):
+            if name in data['PE']:  # v7에서 이미 성공한 건 스킵
+                continue
+            sys.stdout.write(f"\r    PE: [{idx+1}/{total_etfs}] {name} ({sym})...          ")
+            sys.stdout.flush()
+            try:
+                info = yf.Ticker(sym).info
+                pe = info.get('trailingPE') or info.get('forwardPE')
+                if pe and pe > 0:
+                    data['PE'][name] = round(pe, 1)
+                _time.sleep(1.5)
+            except:
+                pass
+    
+    # 누락된 섹터는 기본값 설정
     for sym, name in etf_symbols.items():
-        try:
-            pe = yf.Ticker(sym).info.get('trailingPE')
-            if pe:
-                data['PE'][name] = pe
-            else:
-                data['PE'][name] = 20.0
-            _time.sleep(1)  # 차단 방지: .info는 무거운 호출이므로 1초 대기
-        except:
+        if name not in data['PE']:
             data['PE'][name] = 20.0
-            
+            logger.warning(f"PE 조회 실패: {name} ({sym}) → 기본값 20.0배 사용")
+    sys.stdout.write("\n")
+    _rd_elapsed = _global_time.time() - _rd_start
+    _rd_m, _rd_s = divmod(int(_rd_elapsed), 60)
+    print(f"  ✅ 실시간 데이터 수집 완료 ({_rd_m}분 {_rd_s}초 소요)", flush=True)
+
     return data
 
 
@@ -1334,6 +1625,20 @@ def send_to_discord(top70_krx_text, top70_us_text):
         return
 
     d = get_realtime_data()
+
+    # 날짜 정보 포맷팅 (각 지표의 최신 데이터 기준일 — MM/DD 기준 통일)
+    _cd = d.get('CPI_DATE', '')
+    _pd = d.get('PCE_DATE', '')
+    date_inflation = f" (📅 CPI {_cd} / PCE {_pd} 기준)" if _cd or _pd else ""
+    _nd = d.get('NFP_DATE', '')
+    date_employment = f" (📅 {_nd} 기준)" if _nd else ""
+    _pmd = d.get('PMI_DATE', '')
+    date_pmi = f" (📅 {_pmd} 기준)" if _pmd else ""
+    _fd = d.get('FED_DATE', '')
+    date_fed = f" (📅 {_fd} 기준)" if _fd else ""
+    _nfd = d.get('NFCI_DATE', '')
+    date_nfci = f" (📅 {_nfd} 기준)" if _nfd else ""
+
     vix = d['VIX']
     gold = d['GOLD']
     silver = d['SILVER']
@@ -1361,8 +1666,7 @@ def send_to_discord(top70_krx_text, top70_us_text):
     elif buffett_indicator <= 130.0:
         buffett_alert = f"\n🚨 긴급 역발상 특보: 워런 버핏 지수 바닥권 진입\n👉 현재 지수: {buffett_indicator}% (극단적 공포 및 기회 구간)\n⚠️ 버크셔 해서웨이 동향: 지수가 130% 이하로 바닥권에 진입하면 버핏은 공격적 매수를 준비합니다. 역사적으로 이런 구간에서 버크셔는 '우량 금융주(골드만삭스, BAC)', '필수소비재', '에너지(옥시덴탈, 셰브론)' 및 해자를 갖춘 '미디어/브랜드' 기업들을 대거 매집했습니다. 펀더멘털 우량주 분할 매수 타점입니다."
         
-    berkshire_trade_alert = ""
-    
+        
     def format_pe(name, pe):
         if pe >= 19: return f"🔴 {name} → {pe:.1f}배 · 5점 광기"
         elif pe >= 18: return f"🟠 {name} → {pe:.1f}배 · 4점 과열"
@@ -1417,13 +1721,15 @@ def send_to_discord(top70_krx_text, top70_us_text):
 
 📊 주요 경제 및 유동성 지표
 
-🍎 물가 (CPI / PCE): {d.get('CPI_YOY', '3.3%')} / {d.get('PCE_YOY', '3.5%')}
+🍎 물가 (CPI / PCE): {d.get('CPI_YOY', '3.3%')} / {d.get('PCE_YOY', '3.5%')}{date_inflation}
 
-👷 고용/경기 (NFP / 실업률 / PMI): {d.get('NFP', '178K')} / {d.get('UNRATE', '4.3%')} / {d.get('PMI', '52.7')}
+👷 고용 (NFP / 실업률): {d.get('NFP', '178K')} / {d.get('UNRATE', '4.3%')}{date_employment}
 
-💵 금리: {d.get('FED_RATE', 'Fed 3.50~3.75%')}
+🏭 경기 (ISM PMI): {d.get('PMI', '54.0')}{date_pmi}
 
-💧 유동성 NFCI: {d.get('NFCI', '-0.52')}{d.get('FED_SPEAK', '')}""",
+💵 금리: {d.get('FED_RATE', 'Fed 3.50~3.75%')}{date_fed}
+
+💧 유동성 NFCI: {d.get('NFCI', '-0.52')}{date_nfci}{d.get('FED_SPEAK', '')}""",
 
         f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 안티그레비티 통합 전략 리포트 (2/10)
@@ -1485,16 +1791,14 @@ def send_to_discord(top70_krx_text, top70_us_text):
         f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 안티그레비티 통합 전략 리포트 (5/10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🟢 11개 GICS 섹터 맞춤 전략
-🟢 확대  에너지 / 헬스케어 / 소재
-🟡 중립  금융 / 유틸리티 / 필수소비재 / 산업재
-🔴 축소  IT / 커뮤니케이션 / 임의소비재 / 부동산
+🟢 11개 GICS 섹터 맞춤 전략 (PE 기반 동적 판단)
+{chr(10).join(['🟢 확대  ' + ' / '.join([n for n, p in pe_data.items() if n != '시장 전체' and p < 16]) or '해당 없음', '🟡 중립  ' + ' / '.join([n for n, p in pe_data.items() if n != '시장 전체' and 16 <= p < 18]) or '해당 없음', '🔴 축소  ' + ' / '.join([n for n, p in pe_data.items() if n != '시장 전체' and p >= 18]) or '해당 없음'])}
 
-💡 전략 근거
-유가 ${wti} 고공 + 비용 압박 → 에너지·소재 실적 방어력 돋보임
-밸류에이션 부담 적은 헬스케어 대안 부상
-고금리 취약 부동산, 소비 둔화 임의소비재 축소 필수
-IT·커뮤니케이션 P/E 29배, 차익 실현 압력 극심""",
+💡 전략 근거 (실시간 데이터 기반)
+시장 전체 P/E {market_pe:.1f}배 | VIX {vix} | 유가 ${wti}
+PE 16배 미만 섹터 → 저평가 구간, 비중 확대 유리
+PE 18배 이상 섹터 → 차익 실현 압력 존재, 비중 축소 권고
+고금리 환경에서 부동산·임의소비재 취약, 에너지·소재 방어력 우위""",
 
         f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 안티그레비티 통합 전략 리포트 (6/10)
@@ -1531,19 +1835,19 @@ IT·커뮤니케이션 P/E 29배, 차익 실현 압력 극심""",
 📊 안티그레비티 통합 전략 리포트 (8/10)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📝 최종 행동 지침
-현재 시장: Trailing P/E {market_pe:.1f}배 + 유가 ${wti} 고공
+현재 시장: Trailing P/E {market_pe:.1f}배 | VIX {vix} | 유가 ${wti}
 
 💰 현금 확보
-5점(광기) 섹터 추격 매수 중단, 현금 비중 30%↑ 확보
+{'⚠️ PE ' + f'{market_pe:.0f}배 과열 구간 — 5점(광기) 섹터 추격 매수 중단, 현금 비중 30%↑ 확보' if market_pe >= 19 else '✅ PE ' + f'{market_pe:.0f}배 적정 수준 — 기존 현금 비중 유지, 우량주 분할 매수 가능'}
 
 🔄 로테이션
-기술주 → 에너지·금융·소재 (1~2점 저평가 가치주)
+{'고평가 섹터(PE 18↑) → 저평가 섹터(PE 16↓)로 리밸런싱 권고' if market_pe >= 18 else '현재 밸류에이션 적정 — 기존 포트폴리오 유지, 선별적 비중 조절'}
 
 🎯 타점 대기
 200일선 지지 + 양운 전환 동반 종목만 보수적 접근
 
 ⚡ 예외 매수
-펀더멘털 견고 + 경영진 $100K↑ 내부자 매수 기업만 분할 스윙 허용""",
+{'VIX ' + f'{vix} 고변동성 — 변동성 축소 시까지 신규 진입 자제' if float(vix) >= 25 else '펀더멘털 견고 + 경영진 $100K↑ 내부자 매수 기업만 분할 스윙 허용'}""",
 
         f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 안티그레비티 통합 전략 리포트 (9/10)
@@ -1560,11 +1864,13 @@ IT·커뮤니케이션 P/E 29배, 차익 실현 압력 극심""",
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📝 안티그레비티 최종 종합 요약
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-현재 시장은 극심한 변동성과 유동성의 교차로에 서 있습니다. 미국 연준의 금리 인하 기대감과 인플레이션 고착화 우려가 맞물리면서 국채 금리(TNX)와 달러(DXY)는 여전히 높은 수준을 유지하며 글로벌 자산 시장 전반에 부담을 주고 있습니다.
+📍 시장 현황: P/E {market_pe:.1f}배 | VIX {vix} | DXY {dxy} | 10Y {tnx}% | WTI ${wti} | BTC ${btc}
 
-하지만 비트코인 등 위험 자산의 강세와 핵심 원자재(금, 은, 구리)의 신고가 랠리는 구조적 인플레이션에 대비한 스마트 머니의 이동을 뚜렷하게 보여줍니다. 11개 GICS 섹터 중에서는 고유가와 비용 압박을 방어할 수 있는 에너지, 소재, 그리고 밸류에이션 부담이 적은 헬스케어 섹터가 상대적으로 유리한 환경입니다. 반면 고평가된 일부 기술주 및 임의소비재는 차익 실현 압력이 강하므로 비중 축소와 리스크 관리가 필요합니다.
+{'🚨 시장 과열 경고: PE ' + f'{market_pe:.0f}배로 고평가 구간입니다. 차익 실현 압력이 높으며 추격 매수를 자제하고 현금 비중 확대가 필요합니다.' if market_pe >= 19 else '✅ 밸류에이션 적정: PE ' + f'{market_pe:.0f}배로 합리적 수준입니다. 펀더멘털이 견고한 우량주 중심 선별 매수가 가능합니다.' if market_pe < 17 else '⚠️ 밸류에이션 주의: PE ' + f'{market_pe:.0f}배로 중립~과열 경계입니다. 섹터별 차별화 대응이 필요합니다.'}
 
-결론적으로, 현시점에서는 섣부른 추격 매수를 자제하고 충분한 현금(30% 이상)을 확보하는 것이 안전합니다. 확실한 펀더멘털 신호가 있거나, 200일선 지지와 일목균형표 양운 전환이 동반된 우량 가치주 위주로만 보수적으로 접근하시기 바랍니다.
+{'🔥 VIX ' + f'{vix}으로 공포 구간 — 변동성이 극심하므로 신규 진입 시 분할 매수 필수' if float(vix) >= 25 else '😌 VIX ' + f'{vix}으로 안정 구간 — 시장 변동성이 낮아 포지션 구축에 유리한 환경' if float(vix) < 18 else '⚡ VIX ' + f'{vix}으로 경계 구간 — 포지션 규모를 줄이고 리스크 관리에 집중'}
+
+결론: 200일선 지지 + 일목균형표 양운 전환이 동반된 우량 가치주 위주로 보수적 접근을 권고합니다.
 
 ✅ 전체 스캔 및 분석 완료
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1610,7 +1916,11 @@ if __name__ == "__main__":
     parser.add_argument('--market', type=str, default="ALL")
     parser.add_argument('--force', action='store_true', help="캐시를 무시하고 강제 다운로드")
     parser.add_argument('--offline', action='store_true', help="오프라인 모드: 캐시만 사용, 네트워크 요청 0건 (테스트용)")
+    parser.add_argument('--no-discord', action='store_true', help="디스코드 리포트 전송을 건너뜁니다 (KRX 단독 실행 시 중복 전송 방지용)")
     args = parser.parse_args()
+
+    # 진행 상황 추적기 초기화
+    TRACKER = StageTracker(total_stages=6 if not args.offline else 2)
 
     all_scan_results = []
     skip_scan = False
@@ -1630,14 +1940,18 @@ if __name__ == "__main__":
             sys.exit(1)
     else:
         # 당일 상위 70종목 분석 데이터 가져오기
+        TRACKER.start_stage("당일 급등주 분석 (한국 + 미국 Top 70)")
         top70_krx_text, top70_data = get_top70_krx_gainers()
         top70_us_text, top70_us_data = get_top70_us_gainers()
+        TRACKER.end_stage(f"한국 {len(top70_data)}개 + 미국 {len(top70_us_data)}개 급등주 분석 완료")
 
         # 급등주 선행 패턴(TOP70) 템플릿 빌드 (여기서 호출해야 분석 시 매칭 가능)
         if not skip_scan:
+            TRACKER.start_stage("급등주 선행 패턴 템플릿 빌드")
             krx_top = [t['code'] for t in top70_data][:70] if top70_data else []
             us_top = top70_us_data[:70] if top70_us_data else []
             build_top70_templates(krx_top, us_top)
+            TRACKER.end_stage(f"{len(TOP70_TEMPLATES)}개 템플릿 생성")
 
     if os.path.exists("scan_results.json") and not args.offline:
         try:
@@ -1651,21 +1965,30 @@ if __name__ == "__main__":
 
     if not skip_scan:
         # ── [최적화] 전체 티커 수집 → 일괄 다운로드 → 캐시 ──
-        print("\n[1단계] 전체 테마의 종목을 수집합니다...")
+        TRACKER.start_stage("전체 테마 종목 수집")
         all_krx, all_us, ticker_to_name, theme_ticker_map = collect_all_tickers(args.market)
+        TRACKER.end_stage(f"한국 {len(all_krx)}개 + 미국 {len(all_us)}개 = 총 {len(all_krx)+len(all_us)}개")
 
         if not args.offline:
             # 캐시 확인 (당일 캐시가 있으면 다운로드 스킵)
             cache = None if args.force else load_cache()
             if cache is None:
-                print("\n[2단계] 전 종목 데이터를 일괄 다운로드합니다...")
+                TRACKER.start_stage("전 종목 OHLCV + 시가총액 일괄 다운로드 (가장 오래 걸림)")
                 cache = download_and_cache_all(all_krx, all_us)
+                TRACKER.end_stage(f"{len(cache.get('ohlcv', {}))}개 종목 데이터 캐시 완료")
+            else:
+                TRACKER.start_stage("데이터 캐시 로드 (다운로드 건너뜀)")
+                TRACKER.end_stage(f"{len(cache.get('ohlcv', {}))}개 종목 캐시 사용")
 
-        print(f"\n[3단계] {len(THEMES)}개 테마별 분석을 시작합니다... (캐시 사용, 네트워크 요청 없음)", flush=True)
-        for theme_name in THEMES.keys():
+        TRACKER.start_stage(f"{len(THEMES)}개 테마별 일목균형표 분석 (캐시 사용)")
+        theme_list = list(THEMES.keys())
+        for theme_idx, theme_name in enumerate(theme_list):
+            elapsed_total = _global_time.time() - TRACKER.start_time
+            t_mins, t_secs = divmod(int(elapsed_total), 60)
             print(f"\n{'='*50}")
-            print(f" [현재 스캔 테마] : {theme_name} (대상 시장: {args.market})")
-            print(f"{'='*50}\n")
+            print(f" 📊 [{theme_idx+1}/{len(theme_list)}] {theme_name}")
+            print(f"    대상 시장: {args.market} | 경과: {t_mins}분 {t_secs}초")
+            print(f"{'='*50}")
 
             krx_tickers = theme_ticker_map[theme_name]["krx"]
             nasdaq_tickers = theme_ticker_map[theme_name]["us"]
@@ -1715,13 +2038,18 @@ if __name__ == "__main__":
             json.dump(output_data, f, ensure_ascii=False, indent=4)
 
         print("\n[완료] scan_results.json 저장 완료 (루트 + frontend/public)")
+        TRACKER.end_stage("테마별 분석 + 결과 저장 완료")
 
-    if not args.offline:
+    if args.no_discord:
+        print("\n[안내] --no-discord 옵션으로 디스코드 전송을 건너뜁니다.")
+    elif not args.offline:
         # 최종 디스코드 9분할 리포트 전송
-        print("\n[전송] 디스코드 리포트 전송을 시작합니다...")
+        TRACKER.start_stage("디스코드 리포트 전송 (실시간 데이터 + 리포트)")
         send_to_discord(top70_krx_text, top70_us_text)
+        TRACKER.end_stage("디스코드 전송 완료")
     else:
         print("\n[오프라인] 디스코드 전송 생략")
 
+    TRACKER.print_total()
     print(f"\n[완료] 프로그램이 성공적으로 종료되었습니다! 대시보드: {BASE_DASHBOARD_URL}")
 
