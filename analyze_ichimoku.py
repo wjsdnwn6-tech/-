@@ -991,55 +991,183 @@ labels = {
     "ma200_support_breakout": "📈 200일선: 지지 또는 돌파",
     "5yr_high_breakout": "🚀 5년 전고점 돌파: 새로운 주가 레벨 진입"
 }
+# ── 번역 캐시 (재실행 시 API 호출 최소화) ──
+_TRANSLATE_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'translate_cache.json')
+_TRANSLATE_CACHE = {}
+try:
+    if os.path.exists(_TRANSLATE_CACHE_FILE):
+        with open(_TRANSLATE_CACHE_FILE, 'r', encoding='utf-8') as _f:
+            _TRANSLATE_CACHE = json.load(_f)
+        print(f"  > 번역 캐시 {len(_TRANSLATE_CACHE)}개 로드 완료.")
+except Exception:
+    _TRANSLATE_CACHE = {}
+
+def _save_translate_cache():
+    """번역 캐시를 파일에 저장합니다."""
+    try:
+        with open(_TRANSLATE_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(_TRANSLATE_CACHE, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+# ── deep-translator 기반 번역 엔진 ──
+from deep_translator import GoogleTranslator as _GT
+_translator = _GT(source='en', target='ko')
 
 def translate_to_ko(text):
+    """영어 텍스트를 한국어로 번역합니다. 캐시 우선, 실패 시 원문 반환."""
     if not text or text in ['No title', 'No summary']: return text
-    for attempt in range(2):  # 2회 재시도
+    if text in _TRANSLATE_CACHE:
+        return _TRANSLATE_CACHE[text]
+    import time as _t
+    for attempt in range(3):
         try:
-            url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q={requests.utils.quote(text)}"
-            res = requests.get(url, timeout=8)
-            if res.status_code == 200:
-                translated = "".join([x[0] for x in res.json()[0]])
-                # 자연스러운 한국어 후처리
-                translated = translated.replace(' 의 ', '의 ').replace(' 을 ', '을 ').replace(' 를 ', '를 ')
-                translated = translated.replace(' 이 ', '이 ').replace(' 가 ', '가 ')
+            translated = _translator.translate(text)
+            if translated:
                 translated = re.sub(r'\s+', ' ', translated).strip()
+                _TRANSLATE_CACHE[text] = translated
                 return translated
-            elif res.status_code == 429:
-                import time as _t; _t.sleep(2)  # Rate limit → 2초 대기 후 재시도
-                continue
-        except requests.exceptions.Timeout:
-            import time as _t; _t.sleep(1)
+        except Exception:
+            _t.sleep(1 + attempt)
             continue
-        except Exception as e:
-            if attempt == 0:
-                import time as _t; _t.sleep(1)
-                continue
-            break
     return text
 
-def format_news_concise(news_items, max_items=3):
-    """뉴스 항목을 핵심 제목만 간결하게 한국어로 변환합니다.
-    기존: 제목 전체 + 요약 전체를 그대로 번역 → 너무 길고 번역체
-    개선: 제목만 번역 후 한 줄로 표시 (핵심 포인트만)
+def _batch_translate(texts, batch_size=15):
+    """deep-translator의 translate_batch를 사용한 배치 번역.
+    - 캐시에 있는 텍스트는 API 호출 건너뜀
+    - ||| 구분자 불필요 (공식 배치 API 사용)
+    """
+    import time as _t
+    if not texts:
+        return []
+    
+    # 캐시 히트 분리
+    results = [None] * len(texts)
+    need_translate = []  # (원본 index, 텍스트)
+    cache_hits = 0
+    for idx, text in enumerate(texts):
+        if text in _TRANSLATE_CACHE:
+            results[idx] = _TRANSLATE_CACHE[text]
+            cache_hits += 1
+        else:
+            need_translate.append((idx, text))
+    
+    if cache_hits > 0:
+        sys.stdout.write(f"    (캐시 {cache_hits}건 히트, API 번역 {len(need_translate)}건 필요)\n")
+        sys.stdout.flush()
+    
+    if not need_translate:
+        return results
+    
+    # API 호출이 필요한 것만 배치 번역
+    api_texts = [t for _, t in need_translate]
+    api_results = []
+    total_batches = (len(api_texts) + batch_size - 1) // batch_size
+    
+    for batch_idx, i in enumerate(range(0, len(api_texts), batch_size)):
+        batch = api_texts[i:i + batch_size]
+        done = min(i + batch_size, len(api_texts))
+        sys.stdout.write(f"\r    번역 진행: [{done}/{len(api_texts)}] ({batch_idx+1}/{total_batches} 배치)...   ")
+        sys.stdout.flush()
+        
+        try:
+            ko_batch = _translator.translate_batch(batch)
+            for j, ko_text in enumerate(ko_batch):
+                if ko_text:
+                    ko_text = re.sub(r'\s+', ' ', ko_text).strip()
+                    _TRANSLATE_CACHE[batch[j]] = ko_text
+                    api_results.append(ko_text)
+                else:
+                    api_results.append(batch[j])
+        except Exception:
+            # 배치 실패 시 개별 번역 폴백
+            for text in batch:
+                api_results.append(translate_to_ko(text))
+                _t.sleep(0.5)
+        _t.sleep(0.3)
+    
+    sys.stdout.write(f"\r    번역 완료: {len(api_texts)}건 API 번역 + {cache_hits}건 캐시       \n")
+    sys.stdout.flush()
+    
+    # 결과 매핑
+    for j, (orig_idx, _) in enumerate(need_translate):
+        results[orig_idx] = api_results[j] if j < len(api_results) else texts[orig_idx]
+    
+    return results
+
+def _extract_news_fields(news_item):
+    """yfinance 뉴스 항목에서 제목/요약/출처를 추출합니다.
+    yfinance 버전에 따라 구조가 다를 수 있으므로 양쪽 모두 지원합니다.
+    """
+    content = news_item.get('content', {})
+    # 제목: content.title → title 순서로 시도
+    title = content.get('title', '') or news_item.get('title', '')
+    # 요약: content.summary → summary → description 순서로 시도
+    summary = (content.get('summary', '') or 
+               news_item.get('summary', '') or 
+               news_item.get('description', '') or '')
+    # 출처: content.provider.displayName → publisher 순서로 시도
+    publisher = (content.get('provider', {}).get('displayName', '') or
+                 news_item.get('publisher', '') or '')
+    return title, summary, publisher
+
+def format_news_concise(news_items, max_items=3, emoji='📰'):
+    """뉴스 항목을 한국어로 번역하고 가독성 좋게 포맷팅합니다.
+    - 제목과 요약을 각각 별도 배치 번역 (||| 구분자 충돌 방지)
+    - 출처(publisher) 표시
+    - 가독성 좋은 계층 구조
     """
     if not news_items:
         return None
-    formatted = []
+    
+    # 1단계: 모든 뉴스 항목에서 원문 추출
+    entries = []
     for n in news_items[:max_items]:
-        title = n.get('content', {}).get('title', '')
-        if not title or title == 'No title':
+        title, summary, publisher = _extract_news_fields(n)
+        if not title or title in ['No title', 'No summary']:
             continue
-        ko_title = translate_to_ko(title)
-        # 제목이 너무 길면 마침표/쉼표 기준으로 앞부분만 사용
-        if len(ko_title) > 80:
-            for sep in ['. ', ', ', ' - ']:
-                idx = ko_title.find(sep)
-                if 20 < idx < 80:
-                    ko_title = ko_title[:idx]
-                    break
-        formatted.append(f"🔹 {ko_title}")
-    return "\n".join(formatted) if formatted else None
+        has_summary = (summary and summary not in ['No summary', 'No title', title])
+        if has_summary and len(summary) > 200:
+            summary = summary[:200]
+        entries.append({'title': title, 'summary': summary if has_summary else '', 'publisher': publisher})
+    
+    if not entries:
+        return None
+    
+    # 2단계: 제목과 요약을 각각 별도로 배치 번역 (||| 충돌 방지)
+    titles = [e['title'] for e in entries]
+    summaries = [e['summary'] for e in entries if e['summary']]
+    
+    ko_titles = _batch_translate(titles, batch_size=10)
+    ko_summaries = _batch_translate(summaries, batch_size=10) if summaries else []
+    
+    # 3단계: 번역 결과를 포맷팅
+    formatted = []
+    summary_idx = 0
+    for i, e in enumerate(entries):
+        ko_title = ko_titles[i] if i < len(ko_titles) else e['title']
+        src = f" ({e['publisher']})" if e['publisher'] else ""
+        
+        if e['summary']:
+            ko_summary = ko_summaries[summary_idx] if summary_idx < len(ko_summaries) else ''
+            summary_idx += 1
+            # 요약이 너무 길면 자르기
+            if ko_summary and len(ko_summary) > 130:
+                for sep in ['다. ', '. ', ', ', ' - ']:
+                    idx = ko_summary.find(sep, 40)
+                    if 40 < idx < 130:
+                        ko_summary = ko_summary[:idx + len(sep.rstrip())]
+                        break
+                else:
+                    ko_summary = ko_summary[:130] + '…'
+            if ko_summary:
+                formatted.append(f"{emoji} {ko_title}{src}\n   └ 📝 {ko_summary}")
+            else:
+                formatted.append(f"{emoji} {ko_title}{src}")
+        else:
+            formatted.append(f"{emoji} {ko_title}{src}")
+
+    return "\n\n".join(formatted) if formatted else None
 
 def get_realtime_data():
     _rd_start = _global_time.time()
@@ -1291,6 +1419,7 @@ def get_realtime_data():
     except Exception:
         data['WTI'] = "92.78"
 
+    import time as _news_t
     print("  → [3/4] 채권, 크립토, 뉴스 및 Fed 발언 조회...", flush=True)
     # TNX (10-Year Yield) & News
     try:
@@ -1310,7 +1439,7 @@ def get_realtime_data():
         data['TNX_NEWS'] = tnx_news_str if tnx_news_str else "- 최근 10년물 국채 관련 특이 뉴스 없음."
     except Exception:
          data['TNX_NEWS'] = "- 최근 10년물 국채 관련 특이 뉴스 없음."
-
+    _news_t.sleep(1)  # 번역 API rate limit 방지
     # 2-Year Yield (FRED DGS2) & News (SHY)
     try:
         import FinanceDataReader as fdr
@@ -1339,7 +1468,7 @@ def get_realtime_data():
         data['DGS2_NEWS'] = shy_news_str if shy_news_str else "- 최근 2년물 국채 관련 특이 뉴스 없음."
     except Exception:
         data['DGS2_NEWS'] = "- 최근 2년물 국채 관련 특이 뉴스 없음."
-
+    _news_t.sleep(1)  # 번역 API rate limit 방지
     # BTC-USD & News
     try:
         hist = yf.Ticker('BTC-USD').history(period='5d')
@@ -1358,15 +1487,14 @@ def get_realtime_data():
         data['BTC_NEWS'] = btc_news_str if btc_news_str else "- 최근 비트코인 관련 특이 뉴스 없음."
     except Exception:
         data['BTC_NEWS'] = "- 최근 비트코인 관련 특이 뉴스 없음."
-
+    _news_t.sleep(1)  # 번역 API rate limit 방지
     # Macro / Geopolitical News
     # Macro / Geopolitical News (Top 3 Highly Trusted from SPY)
     try:
         spy_news = yf.Ticker('SPY').news[:3]
-        macro_news_str = format_news_concise(spy_news)
+        macro_news_str = format_news_concise(spy_news, emoji='📰')
         if macro_news_str:
-            # 📰 이모지로 교체 (매크로 뉴스 구분)
-            data['MACRO_NEWS'] = macro_news_str.replace('🔹', '📰')
+            data['MACRO_NEWS'] = macro_news_str
         else:
             data['MACRO_NEWS'] = "- 최근 24시간 내 특이 뉴스 없음."
     except Exception as e:
@@ -1382,12 +1510,13 @@ def get_realtime_data():
         res = requests.get(f'https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en')
         root = ET.fromstring(res.text)
         items = root.findall('.//item')[:2]
-        fed_speak_list = []
+        fed_titles = []
         for i in items:
             title = i.find('title').text if i.find('title') is not None else ''
             title = title.rsplit(' - ', 1)[0]
-            ko_title = translate_to_ko(title)
-            fed_speak_list.append(f" 🗣️ {ko_title}")
+            fed_titles.append(title)
+        ko_fed_titles = _batch_translate(fed_titles, batch_size=10)
+        fed_speak_list = [f" 🗣️ {ko_fed_titles[j]}" for j in range(len(ko_fed_titles))]
         
         if fed_speak_list:
             data['FED_SPEAK'] = "\n\n🎙️ [연준 위원 및 FOMC 주요 발언]\n" + "\n".join(fed_speak_list)
@@ -1398,8 +1527,8 @@ def get_realtime_data():
 
 
         
-    # PE Data (Trailing PE) — Yahoo Finance v7 Quote API 배치 조회 (단 1회 호출)
-    print("  → [4/4] 섹터별 PE 밸류에이션 조회 (11개 ETF, ~12초 소요)...", flush=True)
+    # PE Data (Trailing PE) — yfinance .info 개별 호출 (안정적)
+    print("  → [4/4] 섹터별 PE 밸류에이션 조회 (12개 ETF, ~20초 소요)...", flush=True)
     etf_symbols = {
         'SPY': '시장 전체',
         'XLK': 'IT',
@@ -1419,53 +1548,32 @@ def get_realtime_data():
     import time as _time
     total_etfs = len(etf_symbols)
     
-    # 방법 1: Yahoo Finance v7 Quote API 배치 호출 (전 ETF를 1회 요청으로 조회)
-    pe_fetched = False
-    try:
-        symbols_str = ",".join(etf_symbols.keys())
-        quote_url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols_str}"
-        quote_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        quote_res = requests.get(quote_url, headers=quote_headers, timeout=10)
-        if quote_res.status_code == 200:
-            quotes = quote_res.json().get('quoteResponse', {}).get('result', [])
-            for q in quotes:
-                sym = q.get('symbol', '')
-                name = etf_symbols.get(sym, '')
-                if name:
-                    pe = q.get('trailingPE', 0)
-                    if pe and pe > 0:
-                        data['PE'][name] = round(pe, 1)
-                        sys.stdout.write(f"\r    PE: {name} ({sym}) → {pe:.1f}배 ✅          ")
-                        sys.stdout.flush()
-            # 조회 성공 여부 확인
-            if len(data['PE']) >= total_etfs * 0.5:  # 절반 이상 성공하면 OK
-                pe_fetched = True
-                print(f"\r    PE: v7 Quote API로 {len(data['PE'])}/{total_etfs}개 조회 성공          ")
-    except Exception as e:
-        logger.warning(f"v7 Quote API PE 조회 실패: {e}")
-    
-    # 방법 2: 실패 시 yfinance .info 개별 호출 (폴백)
-    if not pe_fetched:
-        print("    PE: v7 API 실패 → yfinance .info 개별 조회로 전환...", flush=True)
-        for idx, (sym, name) in enumerate(etf_symbols.items()):
-            if name in data['PE']:  # v7에서 이미 성공한 건 스킵
-                continue
-            sys.stdout.write(f"\r    PE: [{idx+1}/{total_etfs}] {name} ({sym})...          ")
-            sys.stdout.flush()
+    for idx, (sym, name) in enumerate(etf_symbols.items()):
+        sys.stdout.write(f"\r    PE: [{idx+1}/{total_etfs}] {name} ({sym})...          ")
+        sys.stdout.flush()
+        pe_val = None
+        for attempt in range(2):  # 최대 2회 시도
             try:
                 info = yf.Ticker(sym).info
-                pe = info.get('trailingPE') or info.get('forwardPE')
-                if pe and pe > 0:
-                    data['PE'][name] = round(pe, 1)
-                _time.sleep(1.5)
-            except:
-                pass
-    
-    # 누락된 섹터는 기본값 설정
-    for sym, name in etf_symbols.items():
-        if name not in data['PE']:
+                pe_val = info.get('trailingPE') or info.get('forwardPE')
+                if pe_val and pe_val > 0:
+                    data['PE'][name] = round(pe_val, 1)
+                    sys.stdout.write(f"\r    PE: [{idx+1}/{total_etfs}] {name} ({sym}) → {pe_val:.1f}배 ✅          ")
+                    sys.stdout.flush()
+                    break
+                else:
+                    pe_val = None
+            except Exception as e:
+                if attempt == 0:
+                    _time.sleep(2)  # 첫 실패 시 2초 대기 후 재시도
+                    continue
+        if pe_val is None:
             data['PE'][name] = 20.0
             logger.warning(f"PE 조회 실패: {name} ({sym}) → 기본값 20.0배 사용")
+        _time.sleep(1.0)  # Rate limit 방지
+    
+    pe_success = sum(1 for v in data['PE'].values() if v != 20.0)
+    print(f"\r    PE: {pe_success}/{total_etfs}개 실제 조회 성공, {total_etfs - pe_success}개 기본값 사용          ")
     sys.stdout.write("\n")
     _rd_elapsed = _global_time.time() - _rd_start
     _rd_m, _rd_s = divmod(int(_rd_elapsed), 60)
@@ -1565,6 +1673,9 @@ def get_top70_us_gainers():
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}, timeout=10)
         quotes = res.json().get('finance', {}).get('result', [{}])[0].get('quotes', [])
         
+        if not quotes:
+            return "- Yahoo Finance 스크리너 API 응답 없음. 미국 급등주 데이터를 가져올 수 없습니다.", []
+
         top70_info = []
         # 업종 정보 사전 구축 (네트워크 호출 대신 DF_US 캐시 사용)
         us_industry_map = dict(zip(DF_US['Symbol'], DF_US['Industry'])) if not DF_US.empty else {}
@@ -1572,20 +1683,25 @@ def get_top70_us_gainers():
         import yfinance as yf
         import time
         import pandas as pd
-        
+
+        # 종목명 수집 (번역 전)
+        raw_entries = []
         for idx, q in enumerate(quotes[:70], 1):
             sym = q.get('symbol', '')
             name = q.get('shortName', sym)
-            ko_name = translate_to_ko(name)
-            ko_name = ko_name if ko_name else name
             chg_obj = q.get('regularMarketChangePercent', 0.0)
             chg = chg_obj.get('raw', 0.0) if isinstance(chg_obj, dict) else float(chg_obj)
-            
-            # DF_US에서 업종 정보 즉시 조회 (기존 .info 호출 제거로 ~10분 단축)
             industry = str(us_industry_map.get(sym, 'Unknown'))
-            sector = industry
-                
-            top70_info.append({"rank": idx, "sym": sym, "name": ko_name, "chg": chg, "sector": sector, "industry": industry})
+            raw_entries.append({"rank": idx, "sym": sym, "name_en": name, "chg": chg, "sector": industry, "industry": industry})
+
+        # 종목명 배치 번역 (10개씩 묶어서 1회 호출 → 70개 = 7회)
+        print(f"  → {len(raw_entries)}개 미국 종목명 번역 중...", flush=True)
+        en_names = [e['name_en'] for e in raw_entries]
+        ko_names = _batch_translate(en_names, batch_size=10)
+        
+        for i, entry in enumerate(raw_entries):
+            entry['name'] = ko_names[i] if i < len(ko_names) else entry['name_en']
+            top70_info.append(entry)
 
         top70_df = pd.DataFrame(top70_info)
         if top70_df.empty:
@@ -1593,16 +1709,22 @@ def get_top70_us_gainers():
             
         sector_counts = top70_df['sector'].value_counts()
 
+        # 섹터명 배치 번역 (중복 제거 후 번역)
+        unique_sectors = [s for s in sector_counts.index if s != 'Unknown']
+        ko_sectors = _batch_translate(unique_sectors, batch_size=10)
+        sector_name_map = {s: ko_sectors[i] for i, s in enumerate(unique_sectors)}
+        sector_name_map['Unknown'] = '기타/확인불가'
+
         report_lines = []
         report_lines.append(f"🔍 [당일 상승률 상위 종목 주요 섹터 분포]")
         for sec, count in sector_counts.head(5).items():
-            s_name = translate_to_ko(sec) if sec != 'Unknown' else '기타/확인불가'
+            s_name = sector_name_map.get(sec, sec)
             s_name = s_name if s_name == '기타/확인불가' or s_name.endswith('관련주') else s_name + ' 관련주'
             report_lines.append(f"  └ {s_name}: {count}종목")
 
         report_lines.append(f"\n📈 [상승률 상위 70종목 섹터별 상세 표]")
         for sec, count in sector_counts.items():
-            s_name = translate_to_ko(sec) if sec != 'Unknown' else '기타/확인불가'
+            s_name = sector_name_map.get(sec, sec)
             s_name = s_name if s_name == '기타/확인불가' or s_name.endswith('관련주') else s_name + ' 관련주'
             report_lines.append(f"\n📁 **[{s_name}]** ({count}종목)")
             
@@ -1626,18 +1748,18 @@ def send_to_discord(top70_krx_text, top70_us_text):
 
     d = get_realtime_data()
 
-    # 날짜 정보 포맷팅 (각 지표의 최신 데이터 기준일 — MM/DD 기준 통일)
+    # 날짜 정보 포맷팅 (📅 이모지 없이 날짜만 표시)
     _cd = d.get('CPI_DATE', '')
     _pd = d.get('PCE_DATE', '')
-    date_inflation = f" (📅 CPI {_cd} / PCE {_pd} 기준)" if _cd or _pd else ""
+    date_inflation = f" (CPI {_cd} / PCE {_pd} 기준)" if _cd or _pd else ""
     _nd = d.get('NFP_DATE', '')
-    date_employment = f" (📅 {_nd} 기준)" if _nd else ""
+    date_employment = f" ({_nd} 기준)" if _nd else ""
     _pmd = d.get('PMI_DATE', '')
-    date_pmi = f" (📅 {_pmd} 기준)" if _pmd else ""
+    date_pmi = f" ({_pmd} 기준)" if _pmd else ""
     _fd = d.get('FED_DATE', '')
-    date_fed = f" (📅 {_fd} 기준)" if _fd else ""
+    date_fed = f" ({_fd} 기준)" if _fd else ""
     _nfd = d.get('NFCI_DATE', '')
-    date_nfci = f" (📅 {_nfd} 기준)" if _nfd else ""
+    date_nfci = f" ({_nfd} 기준)" if _nfd else ""
 
     vix = d['VIX']
     gold = d['GOLD']
@@ -2021,6 +2143,56 @@ if __name__ == "__main__":
             })
 
     if not skip_scan:
+        # ── 미국 주식 시가총액 후처리: 시그널 종목 중 market_cap=0인 것만 배치 조회 ──
+        us_tickers_need_mcap = set()
+        for theme_result in all_scan_results:
+            nasdaq_data = theme_result.get("nasdaq", {})
+            if not nasdaq_data:
+                continue
+            for sig, tickers in nasdaq_data.items():
+                if not tickers:
+                    continue
+                for t in tickers:
+                    if isinstance(t, dict) and t.get("analysis", {}).get("market_cap", 0) <= 0:
+                        us_tickers_need_mcap.add(t["ticker"])
+
+        if us_tickers_need_mcap:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            print(f"\n[시가총액 보완] 미국 주식 {len(us_tickers_need_mcap)}개 시가총액 조회 중...", flush=True)
+
+            def _fetch_mcap_fast(ticker):
+                try:
+                    mc = yf.Ticker(ticker).fast_info.market_cap
+                    if mc and mc > 0:
+                        return ticker, int(mc)
+                except Exception:
+                    pass
+                return ticker, 0
+
+            mcap_map = {}
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(_fetch_mcap_fast, t): t for t in us_tickers_need_mcap}
+                for future in as_completed(futures):
+                    ticker, mc = future.result()
+                    if mc > 0:
+                        mcap_map[ticker] = mc
+
+            # 결과에 시가총액 반영
+            updated_count = 0
+            for theme_result in all_scan_results:
+                nasdaq_data = theme_result.get("nasdaq", {})
+                if not nasdaq_data:
+                    continue
+                for sig, tickers in nasdaq_data.items():
+                    if not tickers:
+                        continue
+                    for t in tickers:
+                        if isinstance(t, dict) and t["ticker"] in mcap_map:
+                            t["analysis"]["market_cap"] = mcap_map[t["ticker"]]
+                            updated_count += 1
+
+            print(f"  → {len(mcap_map)}/{len(us_tickers_need_mcap)}개 조회 성공, {updated_count}건 반영 완료", flush=True)
+
         # 웹 대시보드용 JSON 파일 저장 (루트 + frontend/public 양쪽에 저장)
         output_data = {
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -2051,5 +2223,6 @@ if __name__ == "__main__":
         print("\n[오프라인] 디스코드 전송 생략")
 
     TRACKER.print_total()
+    _save_translate_cache()  # 번역 캐시 저장 (다음 실행 시 재사용)
     print(f"\n[완료] 프로그램이 성공적으로 종료되었습니다! 대시보드: {BASE_DASHBOARD_URL}")
 
