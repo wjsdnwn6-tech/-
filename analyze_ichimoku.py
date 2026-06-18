@@ -1010,32 +1010,36 @@ def _save_translate_cache():
     except Exception:
         pass
 
-# ── deep-translator 기반 번역 엔진 ──
-from deep_translator import GoogleTranslator as _GT
-_translator = _GT(source='en', target='ko')
+# ── Google GTX 직접 호출 기반 번역 엔진 (6월 2일 백업과 동일 방식) ──
+# deep-translator 대신 직접 HTTP 호출로 안정성 확보
 
 def translate_to_ko(text):
-    """영어 텍스트를 한국어로 번역합니다. 캐시 우선, 실패 시 원문 반환."""
+    """영어 텍스트를 한국어로 번역합니다. 캐시 우선, 실패 시 원문 반환.
+    Google Translate GTX 비공식 API 직접 호출 (6월 2일 백업 방식).
+    """
     if not text or text in ['No title', 'No summary']: return text
     if text in _TRANSLATE_CACHE:
         return _TRANSLATE_CACHE[text]
     import time as _t
     for attempt in range(3):
         try:
-            translated = _translator.translate(text)
-            if translated:
-                translated = re.sub(r'\s+', ' ', translated).strip()
-                _TRANSLATE_CACHE[text] = translated
-                return translated
+            url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q={requests.utils.quote(text)}"
+            res = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
+            if res.status_code == 200:
+                translated = "".join([x[0] for x in res.json()[0] if x[0]])
+                if translated:
+                    translated = re.sub(r'\s+', ' ', translated).strip()
+                    _TRANSLATE_CACHE[text] = translated
+                    return translated
         except Exception:
-            _t.sleep(1 + attempt)
+            _t.sleep(0.5 + attempt)
             continue
     return text
 
 def _batch_translate(texts, batch_size=15):
-    """deep-translator의 translate_batch를 사용한 배치 번역.
+    """Google GTX API를 사용한 배치 번역.
     - 캐시에 있는 텍스트는 API 호출 건너뜀
-    - ||| 구분자 불필요 (공식 배치 API 사용)
+    - 개별 GTX 호출을 빠르게 반복 (배치당 0.3초 간격)
     """
     import time as _t
     if not texts:
@@ -1059,35 +1063,30 @@ def _batch_translate(texts, batch_size=15):
     if not need_translate:
         return results
     
-    # API 호출이 필요한 것만 배치 번역
+    # API 호출이 필요한 것만 개별 번역
     api_texts = [t for _, t in need_translate]
     api_results = []
-    total_batches = (len(api_texts) + batch_size - 1) // batch_size
     
-    for batch_idx, i in enumerate(range(0, len(api_texts), batch_size)):
-        batch = api_texts[i:i + batch_size]
-        done = min(i + batch_size, len(api_texts))
-        sys.stdout.write(f"\r    번역 진행: [{done}/{len(api_texts)}] ({batch_idx+1}/{total_batches} 배치)...   ")
-        sys.stdout.flush()
+    for idx, text in enumerate(api_texts):
+        if (idx + 1) % 5 == 0 or (idx + 1) == len(api_texts):
+            sys.stdout.write(f"\r    번역 진행: [{idx+1}/{len(api_texts)}]...   ")
+            sys.stdout.flush()
         
-        try:
-            ko_batch = _translator.translate_batch(batch)
-            for j, ko_text in enumerate(ko_batch):
-                if ko_text:
-                    ko_text = re.sub(r'\s+', ' ', ko_text).strip()
-                    _TRANSLATE_CACHE[batch[j]] = ko_text
-                    api_results.append(ko_text)
-                else:
-                    api_results.append(batch[j])
-        except Exception:
-            # 배치 실패 시 개별 번역 폴백
-            for text in batch:
-                api_results.append(translate_to_ko(text))
-                _t.sleep(0.5)
-        _t.sleep(0.3)
+        translated = translate_to_ko(text)
+        api_results.append(translated)
+        _t.sleep(0.1)  # GTX API rate limit 방지 (100ms 간격)
     
-    sys.stdout.write(f"\r    번역 완료: {len(api_texts)}건 API 번역 + {cache_hits}건 캐시       \n")
+    # 번역 성공/실패 통계
+    success_count = sum(1 for i, r in enumerate(api_results) if r and r != api_texts[i])
+    fail_count = len(api_results) - success_count
+    if fail_count > 0:
+        print(f"    ⚠️ 번역 실패/원문유지: {fail_count}건", flush=True)
+    
+    sys.stdout.write(f"\r    번역 완료: {success_count}/{len(api_texts)}건 API 번역 성공 + {cache_hits}건 캐시       \n")
     sys.stdout.flush()
+    
+    # 즉시 캐시 저장 (프로그램 비정상 종료 시에도 캐시 유지)
+    _save_translate_cache()
     
     # 결과 매핑
     for j, (orig_idx, _) in enumerate(need_translate):
@@ -1168,6 +1167,78 @@ def format_news_concise(news_items, max_items=3, emoji='📰'):
             formatted.append(f"{emoji} {ko_title}{src}")
 
     return "\n\n".join(formatted) if formatted else None
+
+def fetch_pe_data():
+    """섹터별 PE 밸류에이션을 yfinance .info로 조회합니다.
+    스캔 전에 호출하여 rate limit을 피합니다.
+    """
+    import time as _time
+    
+    etf_symbols = {
+        'SPY': '시장 전체',
+        'XLK': 'IT',
+        'XLC': '커뮤니케이션',
+        'XLY': '임의소비재',
+        'XLP': '필수소비재',
+        'XLV': '헬스케어',
+        'XLF': '금융',
+        'XLI': '산업재',
+        'XLB': '소재',
+        'XLE': '에너지',
+        'XLU': '유틸리티',
+        'XLRE': '부동산'
+    }
+    
+    # 섹터별 역사적 평균 PE 기본값 (조회 실패 시 사용)
+    pe_defaults = {
+        '시장 전체': 22.0,
+        'IT': 30.0,
+        '커뮤니케이션': 18.0,
+        '임의소비재': 25.0,
+        '필수소비재': 22.0,
+        '헬스케어': 20.0,
+        '금융': 15.0,
+        '산업재': 22.0,
+        '소재': 18.0,
+        '에너지': 12.0,
+        '유틸리티': 18.0,
+        '부동산': 35.0
+    }
+    
+    print("[PE] 섹터별 PE 밸류에이션 조회 (12개 ETF, ~30초 소요)...", flush=True)
+    pe_data = {}
+    total_etfs = len(etf_symbols)
+    
+    for idx, (sym, name) in enumerate(etf_symbols.items()):
+        sys.stdout.write(f"\r    PE: [{idx+1}/{total_etfs}] {name} ({sym})...          ")
+        sys.stdout.flush()
+        pe_val = None
+        for attempt in range(3):  # 최대 3회 시도
+            try:
+                info = yf.Ticker(sym).info
+                pe_val = info.get('trailingPE') or info.get('forwardPE')
+                if pe_val and pe_val > 0:
+                    pe_data[name] = round(pe_val, 1)
+                    sys.stdout.write(f"\r    PE: [{idx+1}/{total_etfs}] {name} ({sym}) → {pe_val:.1f}배 ✅          ")
+                    sys.stdout.flush()
+                    break
+                else:
+                    pe_val = None
+            except Exception as e:
+                if attempt < 2:
+                    _time.sleep(3 + attempt * 2)  # 3초, 5초 대기 후 재시도
+                    continue
+        if pe_val is None:
+            fallback = pe_defaults.get(name, 20.0)
+            pe_data[name] = fallback
+            logger.warning(f"PE 조회 실패: {name} ({sym}) → 역사적 평균 {fallback:.1f}배 사용")
+        _time.sleep(1.5)  # Rate limit 방지
+    
+    pe_success = sum(1 for n, v in pe_data.items() if v != pe_defaults.get(n, 20.0))
+    print(f"\r    PE: {pe_success}/{total_etfs}개 실제 조회 성공, {total_etfs - pe_success}개 기본값 사용          ")
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+    return pe_data
 
 def get_realtime_data():
     _rd_start = _global_time.time()
@@ -1527,54 +1598,9 @@ def get_realtime_data():
 
 
         
-    # PE Data (Trailing PE) — yfinance .info 개별 호출 (안정적)
-    print("  → [4/4] 섹터별 PE 밸류에이션 조회 (12개 ETF, ~20초 소요)...", flush=True)
-    etf_symbols = {
-        'SPY': '시장 전체',
-        'XLK': 'IT',
-        'XLC': '커뮤니케이션',
-        'XLY': '임의소비재',
-        'XLP': '필수소비재',
-        'XLV': '헬스케어',
-        'XLF': '금융',
-        'XLI': '산업재',
-        'XLB': '소재',
-        'XLE': '에너지',
-        'XLU': '유틸리티',
-        'XLRE': '부동산'
-    }
-    
-    data['PE'] = {}
-    import time as _time
-    total_etfs = len(etf_symbols)
-    
-    for idx, (sym, name) in enumerate(etf_symbols.items()):
-        sys.stdout.write(f"\r    PE: [{idx+1}/{total_etfs}] {name} ({sym})...          ")
-        sys.stdout.flush()
-        pe_val = None
-        for attempt in range(2):  # 최대 2회 시도
-            try:
-                info = yf.Ticker(sym).info
-                pe_val = info.get('trailingPE') or info.get('forwardPE')
-                if pe_val and pe_val > 0:
-                    data['PE'][name] = round(pe_val, 1)
-                    sys.stdout.write(f"\r    PE: [{idx+1}/{total_etfs}] {name} ({sym}) → {pe_val:.1f}배 ✅          ")
-                    sys.stdout.flush()
-                    break
-                else:
-                    pe_val = None
-            except Exception as e:
-                if attempt == 0:
-                    _time.sleep(2)  # 첫 실패 시 2초 대기 후 재시도
-                    continue
-        if pe_val is None:
-            data['PE'][name] = 20.0
-            logger.warning(f"PE 조회 실패: {name} ({sym}) → 기본값 20.0배 사용")
-        _time.sleep(1.0)  # Rate limit 방지
-    
-    pe_success = sum(1 for v in data['PE'].values() if v != 20.0)
-    print(f"\r    PE: {pe_success}/{total_etfs}개 실제 조회 성공, {total_etfs - pe_success}개 기본값 사용          ")
-    sys.stdout.write("\n")
+    print("  → [4/4] PE 데이터 수신 대기...", flush=True)
+    # PE 데이터는 외부에서 주입됨 (fetch_pe_data()로 스캔 전에 미리 조회)
+    # get_realtime_data()에서는 PE를 조회하지 않음
     _rd_elapsed = _global_time.time() - _rd_start
     _rd_m, _rd_s = divmod(int(_rd_elapsed), 60)
     print(f"  ✅ 실시간 데이터 수집 완료 ({_rd_m}분 {_rd_s}초 소요)", flush=True)
@@ -1741,12 +1767,17 @@ def get_top70_us_gainers():
         logger.warning(f"US Top 70 분석 실패: {e}")
         return f"- 미국 시장 분석 중 오류 발생: {e}", []
 
-def send_to_discord(top70_krx_text, top70_us_text):
+def send_to_discord(top70_krx_text, top70_us_text, pe_data=None):
     if not DISCORD_WEBHOOK_URL:
         print("\n[안내] 디스코드 웹훅 URL이 설정되지 않아 메시지를 전송하지 않습니다. (.env 파일을 확인하세요)")
         return
 
     d = get_realtime_data()
+    # 외부에서 주입된 PE 데이터 사용 (스캔 전에 미리 조회된 것)
+    if pe_data:
+        d['PE'] = pe_data
+    elif 'PE' not in d:
+        d['PE'] = {}
 
     # 날짜 정보 포맷팅 (📅 이모지 없이 날짜만 표시)
     _cd = d.get('CPI_DATE', '')
@@ -2042,7 +2073,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 진행 상황 추적기 초기화
-    TRACKER = StageTracker(total_stages=6 if not args.offline else 2)
+    TRACKER = StageTracker(total_stages=7 if not args.offline else 2)
 
     all_scan_results = []
     skip_scan = False
@@ -2050,6 +2081,14 @@ if __name__ == "__main__":
     top70_us_text = "- 오프라인 모드: 당일 급등주 분석 생략"
     top70_data = []
     top70_us_data = []
+    _prefetched_pe_data = {}  # 스캔 전에 미리 조회할 PE 데이터
+
+    if not args.offline:
+        # ★ PE 데이터를 가장 먼저 조회 (아직 yfinance 호출이 없으므로 rate limit 안전)
+        print("\n" + "=" * 50)
+        print(" 📊 PE 밸류에이션 사전 조회 (rate limit 방지)")
+        print("=" * 50)
+        _prefetched_pe_data = fetch_pe_data()
 
     if args.offline:
         print("\n" + "=" * 50)
@@ -2217,7 +2256,7 @@ if __name__ == "__main__":
     elif not args.offline:
         # 최종 디스코드 9분할 리포트 전송
         TRACKER.start_stage("디스코드 리포트 전송 (실시간 데이터 + 리포트)")
-        send_to_discord(top70_krx_text, top70_us_text)
+        send_to_discord(top70_krx_text, top70_us_text, pe_data=_prefetched_pe_data)
         TRACKER.end_stage("디스코드 전송 완료")
     else:
         print("\n[오프라인] 디스코드 전송 생략")
