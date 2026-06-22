@@ -1273,8 +1273,9 @@ def get_realtime_data():
     import os, json
     import time as builtin_time
     
+    import sys
     CACHE_FILE = 'macro_cache.json'
-    CACHE_EXPIRY = 0  # 0 hours - 스캔할 때마다 매번 최신 지표 크롤링
+    CACHE_EXPIRY = 0 if '--force' in sys.argv else 24 * 3600  # 일반 실행 24시간 캐시, --force 시 캐시 무시
 
     if os.path.exists(CACHE_FILE):
         try:
